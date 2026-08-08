@@ -1,0 +1,4 @@
+Django==6.1
+django-tasks-db>=0.12          # DatabaseBackend + `manage.py db_worker`
+django-htmx>=1.23
+whitenoise>=6.9

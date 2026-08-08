@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load pipeline_tags humanize %}
+{% block title %}{{ library.name }} · Transcodarr{% endblock %}
+
+{% block content %}
+<nav class="mb-4 text-sm text-gray-500 dark:text-gray-400" aria-label="Breadcrumb">
+  <a href="{% url 'pipeline:library_list' %}" class="hover:underline">Libraries</a>
+  <span class="mx-2">/</span><span class="text-gray-900 dark:text-white">{{ library.name }}</span>
+</nav>
+
+<div class="flex flex-wrap items-start justify-between gap-3 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ library.name }}</h1>
+    <p class="font-mono text-sm text-gray-500 dark:text-gray-400">{{ library.path }}</p>
+  </div>
+  <div class="flex gap-2">
+    <button hx-get="{% url 'pipeline:library_edit' library.pk %}" hx-target="#modal"
+            class="px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700">
+      Edit settings
+    </button>
+    <form method="post" action="{% url 'pipeline:library_queue_all' library.pk %}">
+      {% csrf_token %}
+      <button type="submit" class="px-4 py-2 text-sm font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">
+        Queue everything pending
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 gap-3 mb-6 sm:grid-cols-4">
+  {% for row in breakdown %}
+    <div class="p-4 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+      <p class="text-xs text-gray-500 dark:text-gray-400">{{ row.verdict|title }}</p>
+      <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ row.count|intcomma }}</p>
+    </div>
+  {% endfor %}
+</div>
+
+<div class="overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+  <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+    <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+      <tr><th class="px-6 py-3">File</th><th class="px-6 py-3">Video</th><th class="px-6 py-3">Size</th><th class="px-6 py-3">Verdict</th></tr>
+    </thead>
+    <tbody>
+      {% for file in page_obj %}
+        <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+          <td class="px-6 py-4 max-w-md">
+            <button hx-get="{% url 'pipeline:file_detail' file.pk %}" hx-target="#modal"
+                    class="font-medium text-left text-gray-900 dark:text-white hover:underline">{{ file.rel_path }}</button>
+          </td>
+          <td class="px-6 py-4 font-mono text-xs">{{ file.video_codec|default:"—" }} · {{ file.resolution_label }}</td>
+          <td class="px-6 py-4">{{ file.size_bytes|filesizeformat }}</td>
+          <td class="px-6 py-4">{% badge file.verdict file.get_verdict_display %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="px-6 py-12 text-center">Nothing here yet. Run a scan to populate this library.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if page_obj.has_other_pages %}
+  <nav class="flex items-center justify-between mt-4" aria-label="Pagination">
+    <span class="text-xs text-gray-500 dark:text-gray-400">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    <div class="inline-flex gap-1">
+      {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-2 text-sm border rounded-lg border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">Previous</a>{% endif %}
+      {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}" class="px-3 py-2 text-sm border rounded-lg border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">Next</a>{% endif %}
+    </div>
+  </nav>
+{% endif %}
+{% endblock %}

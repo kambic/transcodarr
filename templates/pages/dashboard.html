@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% load pipeline_tags humanize %}
+{% block title %}Dashboard · Transcodarr{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Library health</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">Every file measured against its library's profile.</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{% url 'pipeline:queue' %}" class="px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700">
+      Open queue
+    </a>
+    <button hx-get="{% url 'pipeline:library_create' %}" hx-target="#modal"
+            class="px-4 py-2 text-sm font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">
+      Add library
+    </button>
+  </div>
+</div>
+
+{# ---------------------------------------------------------------- #}
+{# Stat cards. Defined and rendered here; re-fetched by htmx every 5s. #}
+{# ---------------------------------------------------------------- #}
+{% partialdef stats inline %}
+<div id="stats" hx-get="{% url 'pipeline:dashboard_stats' %}" hx-trigger="every 5s" hx-swap="outerHTML"
+     class="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 xl:grid-cols-4">
+
+  <div class="p-5 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Files tracked</p>
+    <p class="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{{ counts.total|intcomma }}</p>
+    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ counts.total_size|default:0|filesizeformat }} on disk</p>
+  </div>
+
+  <div class="p-5 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Meeting target</p>
+    <p class="mt-1 text-3xl font-semibold text-emerald-600 dark:text-emerald-400">{{ counts.meets_target|intcomma }}</p>
+    <div class="w-full h-1.5 mt-3 bg-gray-200 rounded-full dark:bg-gray-700">
+      <div class="h-1.5 rounded-full bg-emerald-500" style="width: {{ counts.meets_target|percent_of:counts.total }}%"></div>
+    </div>
+  </div>
+
+  <div class="p-5 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Needs transcode</p>
+    <p class="mt-1 text-3xl font-semibold text-amber-500">{{ counts.needs_work|intcomma }}</p>
+    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      {{ queued_count }} queued{% if counts.errored %} · {{ counts.errored }} errored{% endif %}
+    </p>
+  </div>
+
+  <div class="p-5 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Space reclaimed</p>
+    <p class="mt-1 text-3xl font-semibold text-cyan-600 dark:text-cyan-400">{{ saved_bytes|filesizeformat }}</p>
+    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+      {% if avg_saving %}{{ avg_saving|floatformat:0 }}% average per file{% else %}Nothing transcoded yet{% endif %}
+    </p>
+  </div>
+</div>
+{% endpartialdef %}
+
+<div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+  <div class="lg:col-span-2">
+    {# --------------------------------------------------------- #}
+    {# Live activity. Polls faster than the cards — encodes move. #}
+    {# --------------------------------------------------------- #}
+    {% partialdef activity inline %}
+    <div id="activity" hx-get="{% url 'pipeline:dashboard_activity' %}" hx-trigger="every 3s" hx-swap="outerHTML"
+         class="bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+      <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+        <h2 class="font-semibold text-gray-900 dark:text-white">Running now</h2>
+        <span class="text-xs text-gray-500 dark:text-gray-400">{{ active_jobs|length }} active</span>
+      </div>
+
+      {% for job in active_jobs %}
+        <div class="px-5 py-4 border-b border-gray-100 dark:border-gray-700/60 last:border-0">
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <a href="{{ job.get_absolute_url }}" class="block text-sm font-medium truncate text-gray-900 dark:text-white hover:underline">
+                {{ job.label|basename }}
+              </a>
+              <p class="text-xs text-gray-500 truncate dark:text-gray-400">{{ job.label|dirname|default:"—" }}</p>
+            </div>
+            <div class="text-right shrink-0">
+              {% badge job.state job.get_state_display %}
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {% if job.speed %}{{ job.speed|floatformat:1 }}× · {% endif %}
+                {% if job.eta_seconds %}{{ job.eta_seconds|duration }} left{% else %}{{ job.get_kind_display }}{% endif %}
+              </p>
+            </div>
+          </div>
+          {% if job.state == 'running' %}
+            <div class="w-full h-2 mt-3 bg-gray-200 rounded-full dark:bg-gray-700">
+              <div class="h-2 transition-all duration-500 rounded-full bg-cyan-500" style="width: {{ job.progress }}%"></div>
+            </div>
+          {% endif %}
+        </div>
+      {% empty %}
+        <div class="px-5 py-12 text-center">
+          <p class="text-sm text-gray-500 dark:text-gray-400">Nothing is running.</p>
+          <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+            Scan a library, or queue files from the Files page.
+          </p>
+        </div>
+      {% endfor %}
+    </div>
+    {% endpartialdef %}
+
+    <div class="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+      <h2 class="px-5 py-4 font-semibold text-gray-900 border-b border-gray-200 dark:text-white dark:border-gray-700">Finished recently</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+          <tbody>
+            {% for job in recent_jobs %}
+              <tr class="border-b border-gray-100 dark:border-gray-700/60 last:border-0">
+                <td class="px-5 py-3 font-medium text-gray-900 truncate max-w-xs dark:text-white">{{ job.label|basename }}</td>
+                <td class="px-3 py-3">{% badge job.state job.get_state_display %}</td>
+                <td class="px-3 py-3 text-right">
+                  {% if job.bytes_saved > 0 %}
+                    <span class="text-emerald-600 dark:text-emerald-400">−{{ job.bytes_saved|filesizeformat }}</span>
+                  {% else %}—{% endif %}
+                </td>
+                <td class="px-5 py-3 text-right text-xs whitespace-nowrap">{{ job.finished_at|timesince }} ago</td>
+              </tr>
+            {% empty %}
+              <tr><td class="px-5 py-8 text-center" colspan="4">No finished jobs yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    <div class="p-5 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+      <h2 class="mb-4 font-semibold text-gray-900 dark:text-white">Codecs in the library</h2>
+      {% for codec in codecs %}
+        <div class="mb-3 last:mb-0">
+          <div class="flex justify-between mb-1 text-sm">
+            <span class="font-medium text-gray-700 dark:text-gray-300">{{ codec.video_codec }}</span>
+            <span class="text-gray-500 dark:text-gray-400">{{ codec.count|intcomma }}</span>
+          </div>
+          <div class="w-full h-2 bg-gray-200 rounded-full dark:bg-gray-700">
+            <div class="h-2 rounded-full bg-cyan-500" style="width: {{ codec.share }}%"></div>
+          </div>
+        </div>
+      {% empty %}
+        <p class="text-sm text-gray-500 dark:text-gray-400">Scan a library to see what it holds.</p>
+      {% endfor %}
+    </div>
+
+    <div class="p-5 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+      <h2 class="mb-4 font-semibold text-gray-900 dark:text-white">Workers</h2>
+      <ul class="space-y-3">
+        {% for worker in workers %}
+          <li class="flex items-center justify-between text-sm">
+            <span class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full {% if worker.is_online %}bg-emerald-500{% else %}bg-gray-400{% endif %}"></span>
+              <span class="text-gray-700 dark:text-gray-300">{{ worker.name }}</span>
+            </span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ worker.jobs_completed }} done</span>
+          </li>
+        {% empty %}
+          <li class="text-sm text-gray-500 dark:text-gray-400">
+            No worker has checked in. Start one with <code class="text-cyan-600 dark:text-cyan-400">manage.py db_worker</code>.
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

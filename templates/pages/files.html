@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% load pipeline_tags humanize %}
+{% block title %}Files · Transcodarr{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Files</h1>
+  <p class="text-sm text-gray-500 dark:text-gray-400">Everything the scanner has found, with the verdict from each library's profile.</p>
+</div>
+
+{# Filters drive one htmx GET. hx-push-url keeps the URL shareable and the back button honest. #}
+<form id="filters"
+      hx-get="{% url 'pipeline:file_list' %}"
+      hx-target="#file-results"
+      hx-swap="outerHTML"
+      hx-push-url="true"
+      hx-trigger="input changed delay:300ms from:#q, change from:select, submit"
+      class="grid grid-cols-1 gap-3 p-4 mb-4 bg-white border border-gray-200 rounded-lg shadow-sm sm:grid-cols-2 lg:grid-cols-5 dark:bg-gray-800 dark:border-gray-700">
+
+  <div class="lg:col-span-2">
+    <label for="q" class="sr-only">Search by name</label>
+    <input type="search" name="q" id="q" value="{{ filters.q }}" placeholder="Search file names…"
+           class="block w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+  </div>
+
+  <select name="library" aria-label="Library"
+          class="block w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    <option value="">All libraries</option>
+    {% for library in libraries %}
+      <option value="{{ library.pk }}" {% if filters.library == library.pk|stringformat:"s" %}selected{% endif %}>{{ library.name }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="verdict" aria-label="Verdict"
+          class="block w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    <option value="">Any verdict</option>
+    {% for value, label in verdicts %}
+      <option value="{{ value }}" {% if filters.verdict == value %}selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+
+  <select name="sort" aria-label="Sort order"
+          class="block w-full p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+    <option value="rel_path" {% if filters.sort == 'rel_path' %}selected{% endif %}>Name</option>
+    <option value="-size_bytes" {% if filters.sort == '-size_bytes' %}selected{% endif %}>Largest first</option>
+    <option value="-height" {% if filters.sort == '-height' %}selected{% endif %}>Highest resolution</option>
+    <option value="-updated_at" {% if filters.sort == '-updated_at' %}selected{% endif %}>Recently changed</option>
+  </select>
+</form>
+
+{% partialdef file-results inline %}
+<div id="file-results">
+  <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">{{ result_count|intcomma }} file{{ result_count|pluralize }}</p>
+
+  <div class="overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+    <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+      <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+        <tr>
+          <th class="px-6 py-3">File</th>
+          <th class="px-6 py-3">Video</th>
+          <th class="px-6 py-3">Size</th>
+          <th class="px-6 py-3">Verdict</th>
+          <th class="px-6 py-3 text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for file in page_obj %}
+          {# One row, defined once. Actions re-render just this <tr>. #}
+          {% partialdef file-row inline %}
+          <tr id="file-{{ file.pk }}" class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40">
+            <td class="px-6 py-4 max-w-md">
+              <button hx-get="{% url 'pipeline:file_detail' file.pk %}" hx-target="#modal"
+                      class="font-medium text-left text-gray-900 dark:text-white hover:underline">
+                {{ file.rel_path|basename }}
+              </button>
+              <p class="text-xs truncate">{{ file.library.name }}{% if file.rel_path|dirname %} · {{ file.rel_path|dirname }}{% endif %}</p>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <span class="font-mono text-xs">{{ file.video_codec|default:"—" }}</span>
+              <p class="text-xs">{{ file.resolution_label }}{% if file.bitrate_kbps %} · {{ file.bitrate_kbps|intcomma }} kbps{% endif %}</p>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              {{ file.size_bytes|filesizeformat }}
+              {% if file.bytes_saved %}
+                <p class="text-xs text-emerald-600 dark:text-emerald-400">−{{ file.percent_saved }}%</p>
+              {% endif %}
+            </td>
+            <td class="px-6 py-4">
+              {% badge file.verdict file.get_verdict_display %}
+              <p class="mt-1 text-xs truncate max-w-xs">{{ file.verdict_reason }}</p>
+            </td>
+            <td class="px-6 py-4 text-right whitespace-nowrap">
+              {% if file.is_busy %}
+                {% badge file.status file.get_status_display %}
+              {% else %}
+                <button hx-post="{% url 'pipeline:file_probe' file.pk %}" hx-target="#file-{{ file.pk }}" hx-swap="outerHTML"
+                        class="px-3 py-1.5 text-xs font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600">
+                  Re-probe
+                </button>
+                {% if file.verdict == 'needs_transcode' %}
+                  <button hx-post="{% url 'pipeline:file_queue' file.pk %}" hx-target="#file-{{ file.pk }}" hx-swap="outerHTML"
+                          class="px-3 py-1.5 text-xs font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">
+                    Transcode
+                  </button>
+                {% endif %}
+              {% endif %}
+            </td>
+          </tr>
+          {% endpartialdef %}
+        {% empty %}
+          <tr>
+            <td colspan="5" class="px-6 py-16 text-center">
+              <p class="text-base font-medium text-gray-900 dark:text-white">No files match these filters</p>
+              <p class="mt-1 text-sm">Clear the search, or scan a library to bring files in.</p>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+    <nav class="flex items-center justify-between mt-4" aria-label="Pagination">
+      <span class="text-xs text-gray-500 dark:text-gray-400">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      <div class="inline-flex gap-1">
+        {% if page_obj.has_previous %}
+          <a hx-get="{% url 'pipeline:file_list' %}?{% query_replace page=page_obj.previous_page_number %}"
+             hx-target="#file-results" hx-swap="outerHTML" hx-push-url="true" href="#"
+             class="px-3 py-2 text-sm border rounded-lg cursor-pointer border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">Previous</a>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a hx-get="{% url 'pipeline:file_list' %}?{% query_replace page=page_obj.next_page_number %}"
+             hx-target="#file-results" hx-swap="outerHTML" hx-push-url="true" href="#"
+             class="px-3 py-2 text-sm border rounded-lg cursor-pointer border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">Next</a>
+        {% endif %}
+      </div>
+    </nav>
+  {% endif %}
+</div>
+{% endpartialdef %}
+{% endblock %}

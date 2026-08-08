@@ -1,0 +1,47 @@
+{% comment %}
+Modal body for creating or editing a library. Posts to itself; on success the
+view returns the refreshed grid plus an HX-Trigger that closes this dialog.
+{% endcomment %}
+<div class="bg-white rounded-lg shadow dark:bg-gray-800">
+  <div class="flex items-center justify-between p-5 border-b border-gray-200 rounded-t dark:border-gray-700">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+      {% if library %}Edit {{ library.name }}{% else %}Add a library{% endif %}
+    </h3>
+    <button type="button" onclick="document.body.dispatchEvent(new Event('closeModal'))"
+            class="p-1.5 text-gray-400 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600">
+      <span class="sr-only">Close</span>
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+
+  <form hx-post="{% if library %}{% url 'pipeline:library_edit' library.pk %}{% else %}{% url 'pipeline:library_create' %}{% endif %}"
+        hx-target="#library-grid"
+        hx-swap="outerHTML"
+        hx-disabled-elt="find button[type='submit']">
+    {% csrf_token %}
+    <div class="p-5 space-y-4">
+      {% if form.non_field_errors %}
+        <div class="p-3 text-sm text-red-700 rounded-lg bg-red-50 dark:bg-red-900/30 dark:text-red-300">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      {% for field in form %}
+        <div>
+          <label for="{{ field.id_for_label }}" class="block mb-2 text-sm font-medium text-gray-900 dark:text-white">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ field.help_text }}</p>{% endif %}
+          {% for error in field.errors %}<p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ error }}</p>{% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="flex justify-end gap-2 p-5 border-t border-gray-200 dark:border-gray-700">
+      <button type="button" onclick="document.body.dispatchEvent(new Event('closeModal'))"
+              class="px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-white dark:border-gray-600">
+        Cancel
+      </button>
+      <button type="submit" class="px-4 py-2 text-sm font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60">
+        {% if library %}Save changes{% else %}Add and scan{% endif %}
+      </button>
+    </div>
+  </form>
+</div>

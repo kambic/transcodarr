@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Profiles · Transcodarr{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Profiles</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">The target each library is measured against. Change one and the next probe re-evaluates every file.</p>
+  </div>
+  <button hx-get="{% url 'pipeline:profile_create' %}" hx-target="#modal"
+          class="px-4 py-2 text-sm font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">New profile</button>
+</div>
+
+<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+  {% for profile in profiles %}
+    <div class="p-5 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+      <div class="flex items-start justify-between">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ profile.name }}</h2>
+        <button hx-get="{% url 'pipeline:profile_edit' profile.pk %}" hx-target="#modal"
+                class="text-xs text-cyan-600 hover:underline dark:text-cyan-400">Edit</button>
+      </div>
+      <dl class="mt-4 space-y-2 text-sm">
+        <div class="flex justify-between"><dt class="text-gray-500 dark:text-gray-400">Video</dt><dd class="font-mono text-gray-900 dark:text-white">{{ profile.get_video_codec_display }}</dd></div>
+        <div class="flex justify-between"><dt class="text-gray-500 dark:text-gray-400">Container</dt><dd class="font-mono text-gray-900 dark:text-white">{{ profile.get_container_display }}</dd></div>
+        <div class="flex justify-between"><dt class="text-gray-500 dark:text-gray-400">Quality</dt><dd class="font-mono text-gray-900 dark:text-white">{{ profile.quality }} · {{ profile.preset }}</dd></div>
+        <div class="flex justify-between"><dt class="text-gray-500 dark:text-gray-400">Encoder</dt><dd class="font-mono text-gray-900 dark:text-white">{{ profile.get_hw_accel_display }}</dd></div>
+        {% if profile.max_height %}<div class="flex justify-between"><dt class="text-gray-500 dark:text-gray-400">Max height</dt><dd class="font-mono text-gray-900 dark:text-white">{{ profile.max_height }}p</dd></div>{% endif %}
+      </dl>
+      <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">Used by {{ profile.library_count }} librar{{ profile.library_count|pluralize:"y,ies" }}</p>
+    </div>
+  {% empty %}
+    <p class="text-sm text-gray-500 dark:text-gray-400">No profiles yet. Run <code>manage.py seed_demo</code> or add one.</p>
+  {% endfor %}
+</div>
+{% endblock %}

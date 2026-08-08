@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load pipeline_tags humanize %}
+{% block title %}Libraries · Transcodarr{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Libraries</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">Folders to watch, and the profile their contents should match.</p>
+  </div>
+  <button hx-get="{% url 'pipeline:library_create' %}" hx-target="#modal"
+          class="px-4 py-2 text-sm font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">
+    Add library
+  </button>
+</div>
+
+{% partialdef library-grid inline %}
+<div id="library-grid" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+  {% for library in libraries %}
+    {% partialdef library-card inline %}
+    <div id="library-{{ library.pk }}"
+         class="p-5 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700"
+         {% if library.is_scanning %}
+           hx-get="{% url 'pipeline:library_card' library.pk %}" hx-trigger="every 3s" hx-swap="outerHTML"
+         {% endif %}>
+
+      <div class="flex items-start justify-between gap-2">
+        <div class="min-w-0">
+          <a href="{{ library.get_absolute_url }}" class="text-lg font-semibold text-gray-900 dark:text-white hover:underline">{{ library.name }}</a>
+          <p class="font-mono text-xs text-gray-500 truncate dark:text-gray-400">{{ library.path }}</p>
+        </div>
+        <button id="lib-menu-{{ library.pk }}" data-dropdown-toggle="lib-drop-{{ library.pk }}" type="button"
+                class="p-1.5 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+          <span class="sr-only">More actions for {{ library.name }}</span>
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z"/></svg>
+        </button>
+        <div id="lib-drop-{{ library.pk }}" class="z-20 hidden bg-white divide-y divide-gray-100 rounded-lg shadow w-44 dark:bg-gray-700">
+          <ul class="py-2 text-sm text-gray-700 dark:text-gray-200">
+            <li><button hx-get="{% url 'pipeline:library_edit' library.pk %}" hx-target="#modal"
+                        class="block w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-600">Edit settings</button></li>
+            <li><a href="{{ library.get_absolute_url }}" class="block px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600">Browse files</a></li>
+            <li><button hx-post="{% url 'pipeline:library_delete' library.pk %}" hx-target="#library-grid" hx-swap="outerHTML"
+                        hx-confirm="Remove {{ library.name }}? Files on disk are left alone."
+                        class="block w-full px-4 py-2 text-left text-red-600 hover:bg-gray-100 dark:text-red-400 dark:hover:bg-gray-600">Remove library</button></li>
+          </ul>
+        </div>
+      </div>
+
+      <dl class="grid grid-cols-3 gap-2 mt-4 text-center">
+        <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+          <dt class="text-xs text-gray-500 dark:text-gray-400">Files</dt>
+          <dd class="text-lg font-semibold text-gray-900 dark:text-white">{{ library.file_count|intcomma }}</dd>
+        </div>
+        <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+          <dt class="text-xs text-gray-500 dark:text-gray-400">Pending</dt>
+          <dd class="text-lg font-semibold {% if library.pending %}text-amber-500{% else %}text-gray-900 dark:text-white{% endif %}">{{ library.pending|intcomma }}</dd>
+        </div>
+        <div class="p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+          <dt class="text-xs text-gray-500 dark:text-gray-400">Size</dt>
+          <dd class="text-lg font-semibold text-gray-900 dark:text-white">{{ library.size|default:0|filesizeformat }}</dd>
+        </div>
+      </dl>
+
+      <div class="flex items-center justify-between mt-4">
+        <span class="text-xs text-gray-500 dark:text-gray-400">
+          {% if library.is_scanning %}
+            <span class="inline-flex items-center gap-1.5 text-cyan-600 dark:text-cyan-400">
+              <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
+              Scanning
+            </span>
+          {% elif library.last_scan_finished_at %}
+            Scanned {{ library.last_scan_finished_at|timesince }} ago
+          {% else %}
+            Never scanned
+          {% endif %}
+        </span>
+        <div class="flex gap-2">
+          <span class="px-2.5 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">{{ library.profile.name }}</span>
+          <button hx-post="{% url 'pipeline:library_scan' library.pk %}" hx-target="#library-grid" hx-swap="outerHTML"
+                  {% if library.is_scanning %}disabled{% endif %}
+                  class="px-3 py-1.5 text-xs font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600">
+            Scan now
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endpartialdef %}
+  {% empty %}
+    <div class="p-10 text-center bg-white border border-gray-200 border-dashed rounded-lg md:col-span-2 xl:col-span-3 dark:bg-gray-800 dark:border-gray-700">
+      <p class="text-base font-medium text-gray-900 dark:text-white">No libraries yet</p>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Point Transcodarr at a folder and it will scan it, probe every file, and tell you what needs work.</p>
+      <button hx-get="{% url 'pipeline:library_create' %}" hx-target="#modal"
+              class="mt-4 px-4 py-2 text-sm font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">
+        Add your first library
+      </button>
+    </div>
+  {% endfor %}
+</div>
+{% endpartialdef %}
+{% endblock %}

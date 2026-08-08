@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% load pipeline_tags %}
+{% block title %}Queue · Transcodarr{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Queue</h1>
+  <p class="text-sm text-gray-500 dark:text-gray-400">
+    Work waiting on a <code class="text-cyan-600 dark:text-cyan-400">db_worker</code>, and what each worker is doing right now.
+  </p>
+</div>
+
+<div class="relative overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+  <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+    <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+      <tr>
+        <th scope="col" class="px-6 py-3">File</th>
+        <th scope="col" class="px-6 py-3">Stage</th>
+        <th scope="col" class="px-6 py-3 w-64">Progress</th>
+        <th scope="col" class="px-6 py-3">Worker</th>
+        <th scope="col" class="px-6 py-3 text-right">Actions</th>
+      </tr>
+    </thead>
+
+    {# ------------------------------------------------------------------ #}
+    {# The whole tbody replaces itself every 2s. One request, one swap,    #}
+    {# so rows never disagree with each other mid-update.                  #}
+    {# ------------------------------------------------------------------ #}
+    {% partialdef queue-table inline %}
+    <tbody id="queue-table"
+           hx-get="{% url 'pipeline:queue_table' %}"
+           hx-trigger="every 2s"
+           hx-swap="outerHTML"
+           hx-sync="this:replace">
+      {% for job in jobs %}
+        <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/40">
+          <td class="px-6 py-4 max-w-sm">
+            <a href="{{ job.get_absolute_url }}" class="font-medium text-gray-900 dark:text-white hover:underline">
+              {{ job.label|basename }}
+            </a>
+            <p class="text-xs truncate">{{ job.label|dirname }}</p>
+          </td>
+          <td class="px-6 py-4">
+            {% badge job.state job.get_state_display %}
+            <p class="mt-1 text-xs">{{ job.get_kind_display }}{% if job.attempt > 1 %} · attempt {{ job.attempt }}{% endif %}</p>
+          </td>
+          <td class="px-6 py-4">
+            {% if job.state == 'running' %}
+              <div class="flex items-center gap-2">
+                <div class="w-full h-2 bg-gray-200 rounded-full dark:bg-gray-700">
+                  <div class="h-2 transition-all duration-500 rounded-full bg-cyan-500" style="width: {{ job.progress }}%"></div>
+                </div>
+                <span class="text-xs tabular-nums shrink-0">{{ job.progress|floatformat:0 }}%</span>
+              </div>
+              <p class="mt-1 text-xs">
+                {% if job.fps %}{{ job.fps|floatformat:0 }} fps{% endif %}
+                {% if job.speed %} · {{ job.speed|floatformat:1 }}×{% endif %}
+                {% if job.eta_seconds %} · {{ job.eta_seconds|duration }} left{% endif %}
+              </p>
+            {% elif job.state == 'cancelling' %}
+              <span class="text-xs">Stopping ffmpeg…</span>
+            {% else %}
+              <span class="text-xs">Waiting for a worker</span>
+            {% endif %}
+          </td>
+          <td class="px-6 py-4 text-xs">{{ job.worker.name|default:"—" }}</td>
+          <td class="px-6 py-4 text-right whitespace-nowrap">
+            {% if job.state == 'queued' %}
+              <button hx-post="{% url 'pipeline:job_bump' job.pk %}" hx-target="#queue-table" hx-swap="outerHTML"
+                      class="px-3 py-1.5 text-xs font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600">
+                Move up
+              </button>
+            {% endif %}
+            {% if job.state == 'queued' or job.state == 'running' %}
+              <button hx-post="{% url 'pipeline:job_cancel' job.pk %}" hx-target="#queue-table" hx-swap="outerHTML"
+                      hx-confirm="Cancel this job? The original file is left untouched."
+                      class="px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 dark:bg-gray-700 dark:border-red-900 dark:text-red-400 dark:hover:bg-gray-600">
+                Cancel
+              </button>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="5" class="px-6 py-16 text-center">
+            <p class="text-base font-medium text-gray-900 dark:text-white">The queue is empty</p>
+            <p class="mt-1 text-sm">Scan a library, or queue individual files from the Files page.</p>
+            <a href="{% url 'pipeline:library_list' %}" class="inline-block mt-4 px-4 py-2 text-sm font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">
+              Go to libraries
+            </a>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    {% endpartialdef %}
+  </table>
+</div>
+
+<h2 class="mt-8 mb-3 text-lg font-semibold text-gray-900 dark:text-white">History</h2>
+<div class="overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+  <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+    <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+      <tr>
+        <th class="px-6 py-3">File</th>
+        <th class="px-6 py-3">Result</th>
+        <th class="px-6 py-3">Runtime</th>
+        <th class="px-6 py-3 text-right">Change</th>
+        <th class="px-6 py-3 text-right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for job in recent %}
+        <tr class="bg-white border-b dark:bg-gray-800 dark:border-gray-700">
+          <td class="px-6 py-4 max-w-sm">
+            <a href="{{ job.get_absolute_url }}" class="font-medium text-gray-900 truncate dark:text-white hover:underline">{{ job.label|basename }}</a>
+          </td>
+          <td class="px-6 py-4">
+            {% badge job.state job.get_state_display %}
+            {% if job.error %}<p class="mt-1 text-xs text-red-500 truncate max-w-xs">{{ job.error|truncatechars:80 }}</p>{% endif %}
+          </td>
+          <td class="px-6 py-4 text-xs">{{ job.duration_seconds|duration }}</td>
+          <td class="px-6 py-4 text-right">
+            {% if job.bytes_saved > 0 %}
+              <span class="text-emerald-600 dark:text-emerald-400">−{{ job.bytes_saved|filesizeformat }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td class="px-6 py-4 text-right">
+            {% if job.state == 'failed' or job.state == 'cancelled' %}
+              <button hx-post="{% url 'pipeline:job_retry' job.pk %}" hx-target="#queue-table" hx-swap="outerHTML"
+                      class="px-3 py-1.5 text-xs font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600">
+                Run again
+              </button>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="px-6 py-10 text-center">Nothing has finished yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% load pipeline_tags humanize %}
+{% block title %}{{ file.rel_path|basename }} · Transcodarr{% endblock %}
+
+{% block content %}
+{% partialdef file-body inline %}
+{# Same markup for the full page and the modal — the view picks which one to render. #}
+<div class="bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+  <div class="flex items-start justify-between gap-4 p-5 border-b border-gray-200 dark:border-gray-700">
+    <div class="min-w-0">
+      <h2 class="text-lg font-semibold break-words text-gray-900 dark:text-white">{{ file.rel_path|basename }}</h2>
+      <p class="font-mono text-xs break-all text-gray-500 dark:text-gray-400">{{ file.path }}</p>
+    </div>
+    <button type="button" onclick="document.body.dispatchEvent(new Event('closeModal'))"
+            class="p-1.5 text-gray-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+      <span class="sr-only">Close</span>
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+
+  <div class="p-5">
+    <div class="flex flex-wrap gap-2 mb-5">
+      {% badge file.status file.get_status_display %}
+      {% badge file.verdict file.get_verdict_display %}
+      <span class="px-2.5 py-0.5 text-xs rounded-full border bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">{{ file.library.name }}</span>
+    </div>
+
+    {% if file.verdict_reason %}
+      <p class="p-3 mb-5 text-sm rounded-lg bg-gray-50 text-gray-700 dark:bg-gray-900/50 dark:text-gray-300">{{ file.verdict_reason }}</p>
+    {% endif %}
+
+    <dl class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+      <div><dt class="text-xs text-gray-500 dark:text-gray-400">Video</dt><dd class="font-mono text-gray-900 dark:text-white">{{ file.video_codec|default:"—" }}</dd></div>
+      <div><dt class="text-xs text-gray-500 dark:text-gray-400">Audio</dt><dd class="font-mono text-gray-900 dark:text-white">{{ file.audio_codec|default:"—" }}</dd></div>
+      <div><dt class="text-xs text-gray-500 dark:text-gray-400">Container</dt><dd class="font-mono text-gray-900 dark:text-white">{{ file.container|default:"—" }}</dd></div>
+      <div><dt class="text-xs text-gray-500 dark:text-gray-400">Resolution</dt><dd class="font-mono text-gray-900 dark:text-white">{% if file.width %}{{ file.width }}×{{ file.height }}{% else %}—{% endif %}</dd></div>
+      <div><dt class="text-xs text-gray-500 dark:text-gray-400">Bitrate</dt><dd class="font-mono text-gray-900 dark:text-white">{% if file.bitrate_kbps %}{{ file.bitrate_kbps|intcomma }} kbps{% else %}—{% endif %}</dd></div>
+      <div><dt class="text-xs text-gray-500 dark:text-gray-400">Runtime</dt><dd class="font-mono text-gray-900 dark:text-white">{{ file.duration_seconds|duration }}</dd></div>
+      <div><dt class="text-xs text-gray-500 dark:text-gray-400">Size</dt><dd class="font-mono text-gray-900 dark:text-white">{{ file.size_bytes|filesizeformat }}</dd></div>
+      {% if file.bytes_saved %}
+        <div><dt class="text-xs text-gray-500 dark:text-gray-400">Was</dt><dd class="font-mono text-gray-900 dark:text-white">{{ file.original_size_bytes|filesizeformat }}</dd></div>
+        <div><dt class="text-xs text-gray-500 dark:text-gray-400">Saved</dt><dd class="font-mono text-emerald-600 dark:text-emerald-400">{{ file.bytes_saved|filesizeformat }} ({{ file.percent_saved }}%)</dd></div>
+      {% endif %}
+      <div><dt class="text-xs text-gray-500 dark:text-gray-400">Target profile</dt><dd class="text-gray-900 dark:text-white">{{ file.library.profile.name }}</dd></div>
+      <div><dt class="text-xs text-gray-500 dark:text-gray-400">Last probed</dt><dd class="text-gray-900 dark:text-white">{% if file.last_probed_at %}{{ file.last_probed_at|timesince }} ago{% else %}Never{% endif %}</dd></div>
+    </dl>
+
+    {% if file.last_error %}
+      <div class="p-3 mt-5 text-sm text-red-700 rounded-lg bg-red-50 dark:bg-red-900/30 dark:text-red-300">
+        <p class="font-medium">Last error</p>
+        <p class="mt-1 font-mono text-xs break-words">{{ file.last_error|truncatechars:600 }}</p>
+      </div>
+    {% endif %}
+
+    {% if jobs %}
+      <h3 class="mt-6 mb-2 text-sm font-semibold text-gray-900 dark:text-white">Job history</h3>
+      <ul class="text-sm divide-y divide-gray-100 dark:divide-gray-700">
+        {% for job in jobs %}
+          <li class="flex items-center justify-between py-2">
+            <a href="{{ job.get_absolute_url }}" class="text-gray-700 hover:underline dark:text-gray-300">
+              {{ job.get_kind_display }} · {{ job.created_at|date:"j M H:i" }}
+            </a>
+            {% badge job.state job.get_state_display %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+
+  <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-700">
+    <button hx-post="{% url 'pipeline:file_probe' file.pk %}" hx-target="#file-{{ file.pk }}" hx-swap="outerHTML"
+            class="px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600">
+      Re-probe
+    </button>
+    {% if not file.is_busy %}
+      <button hx-post="{% url 'pipeline:file_queue' file.pk %}" hx-target="#file-{{ file.pk }}" hx-swap="outerHTML"
+              class="px-4 py-2 text-sm font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">
+        Queue transcode
+      </button>
+    {% endif %}
+  </div>
+</div>
+{% endpartialdef %}
+{% endblock %}
