@@ -58,13 +58,59 @@ class TranscodeProfile(models.Model):
         return self.name
 
 
+class Flow(models.Model):
+    """A node graph. The editor saves the whole thing as one JSON document.
+
+    Storing the graph as JSON rather than normalised node and edge tables keeps
+    a canvas save atomic: one write, no half-applied layouts if the request
+    dies. Nothing queries inside a graph, so there is nothing to gain from
+    splitting it up.
+
+    Shape:
+        {"nodes": [{"id", "type", "x", "y", "config": {...}}],
+         "edges": [{"from": node_id, "output": 1, "to": node_id}]}
+    """
+
+    name = models.CharField(max_length=120, unique=True)
+    description = models.CharField(max_length=300, blank=True)
+    enabled = models.BooleanField(default=True)
+    graph = models.JSONField(default=dict)
+    revision = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return self.name
+
+    def get_absolute_url(self) -> str:
+        return reverse("pipeline:flow_editor", args=[self.pk])
+
+    @property
+    def node_count(self) -> int:
+        return len(self.graph.get("nodes") or [])
+
+    @property
+    def problems(self) -> list[str]:
+        from .flows.engine import validate
+
+        return validate(self.graph or {"nodes": [], "edges": []})
+
+
 class Library(models.Model):
     """A folder to watch, plus the profile its contents should match."""
 
     name = models.CharField(max_length=120)
     path = models.CharField(max_length=500, help_text="Absolute path the worker can read.")
     profile = models.ForeignKey(
-        TranscodeProfile, on_delete=models.PROTECT, related_name="libraries"
+        TranscodeProfile, on_delete=models.PROTECT, related_name="libraries",
+        help_text="Used when no flow is set, and as the fallback for simple setups.",
+    )
+    flow = models.ForeignKey(
+        Flow, on_delete=models.SET_NULL, null=True, blank=True, related_name="libraries",
+        help_text="A flow takes precedence over the profile.",
     )
     extensions = models.CharField(
         max_length=200,
@@ -241,6 +287,7 @@ class Worker(models.Model):
 class JobKind(models.TextChoices):
     PROBE = "probe", "Probe"
     TRANSCODE = "transcode", "Transcode"
+    FLOW = "flow", "Flow"
     SCAN = "scan", "Scan"
 
 
@@ -294,6 +341,13 @@ class Job(models.Model):
 
     size_before = models.BigIntegerField(default=0)
     size_after = models.BigIntegerField(default=0)
+
+    flow = models.ForeignKey(
+        Flow, on_delete=models.SET_NULL, null=True, blank=True, related_name="jobs"
+    )
+    trace = models.JSONField(
+        default=list, blank=True, help_text="Nodes visited, in order, with the output taken."
+    )
 
     command = models.TextField(blank=True)
     log = models.TextField(blank=True)

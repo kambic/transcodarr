@@ -66,6 +66,7 @@
         {% url 'pipeline:queue' as u %}{% include 'partials/nav_item.html' with url=u label='Queue' icon='play' count=nav_queue_count %}
         {% url 'pipeline:file_list' as u %}{% include 'partials/nav_item.html' with url=u label='Files' icon='film' %}
         {% url 'pipeline:library_list' as u %}{% include 'partials/nav_item.html' with url=u label='Libraries' icon='folder' %}
+        {% url 'pipeline:flow_list' as u %}{% include 'partials/nav_item.html' with url=u label='Flows' icon='flow' %}
         {% url 'pipeline:profile_list' as u %}{% include 'partials/nav_item.html' with url=u label='Profiles' icon='sliders' %}
         {% url 'pipeline:worker_list' as u %}{% include 'partials/nav_item.html' with url=u label='Workers' icon='cpu' %}
       </ul>

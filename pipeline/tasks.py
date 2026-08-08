@@ -175,23 +175,52 @@ def probe_file(context, media_file_id: int) -> str:
     media_file.last_probed_at = timezone.now()
     media_file.last_error = ""
 
-    decision = rules.evaluate(media_file, media_file.library.profile)
-    media_file.verdict = (
-        Verdict.NEEDS_TRANSCODE if decision.needs_transcode else Verdict.MEETS_TARGET
-    )
-    media_file.verdict_reason = decision.reason
-    media_file.status = FileStatus.QUEUED if decision.needs_transcode else FileStatus.READY
+    # A flow, if the library has one, otherwise the profile rules.
+    flow = media_file.library.flow
+    if flow and flow.enabled:
+        needs_work, reason, trace = _evaluate_flow(media_file, flow, job)
+    else:
+        decision = rules.evaluate(media_file, media_file.library.profile)
+        needs_work, reason, trace = decision.needs_transcode, decision.reason, []
+
+    media_file.verdict = Verdict.NEEDS_TRANSCODE if needs_work else Verdict.MEETS_TARGET
+    media_file.verdict_reason = reason
+    media_file.status = FileStatus.QUEUED if needs_work else FileStatus.READY
     media_file.save()
 
-    job.append_log(f"{data.video_codec or '?'} · {media_file.resolution_label} · {decision.reason}")
+    if trace:
+        job.trace, job.flow = trace, flow
+    job.append_log(f"{data.video_codec or '?'} · {media_file.resolution_label} · {reason}")
     _finish_job(job, JobState.SUCCEEDED, progress=100.0)
 
-    if decision.needs_transcode and media_file.library.auto_queue:
-        queue_transcode(media_file.pk)
-    elif decision.needs_transcode:
+    if not needs_work:
+        return media_file.verdict
+    if not media_file.library.auto_queue:
         MediaFile.objects.filter(pk=media_file.pk).update(status=FileStatus.SKIPPED)
+        return media_file.verdict
+
+    if flow and flow.enabled:
+        from .flow_tasks import queue_flow
+
+        queue_flow(media_file.pk)
+    else:
+        queue_transcode(media_file.pk)
 
     return media_file.verdict
+
+
+def _evaluate_flow(media_file, flow, job) -> tuple[bool, str, list]:
+    """Dry-run the flow so probing can answer "does this need work?" cheaply."""
+    from .flow_tasks import evaluate_flow
+
+    try:
+        result = evaluate_flow(media_file, flow)
+    except Exception as exc:
+        job.append_log(f"Flow could not be evaluated: {exc}")
+        return False, f"Flow error: {exc}", []
+    for message in result.ctx.messages:
+        job.append_log(message)
+    return result.needs_work, result.reason, result.trace
 
 
 # --------------------------------------------------------------------------
@@ -388,15 +417,27 @@ def _open_job(context, *, kind, media_file=None, library=None) -> Job:
 
 
 def _finish_job(job: Job, state, *, progress: float | None = None, size_after=None, log=None) -> None:
-    job.state = state
-    job.finished_at = timezone.now()
-    if progress is not None:
-        job.progress = progress
-    if size_after is not None:
-        job.size_after = size_after
+    """Close a job with a targeted UPDATE.
+
+    Workers write progress, worker and command with `.update()` while the job
+    runs, so the in-memory instance is stale by the time we get here. Calling
+    `job.save()` would quietly revert those columns — hence the explicit field
+    list, which touches only what finishing actually changes.
+    """
     if log:
         job.append_log(log)
-    job.save()
+    updates = {"state": state, "finished_at": timezone.now(), "log": job.log}
+    if progress is not None:
+        updates["progress"] = progress
+    if size_after is not None:
+        updates["size_after"] = size_after
+    if job.trace:
+        updates["trace"] = job.trace
+    if job.error:
+        updates["error"] = job.error
+    if job.flow_id:
+        updates["flow_id"] = job.flow_id
+    Job.objects.filter(pk=job.pk).update(**updates)
 
 
 def _fail_job(job: Job, error: str) -> None:

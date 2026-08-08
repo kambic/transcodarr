@@ -67,6 +67,32 @@
     </div>
   {% endif %}
 
+  {% if job.trace %}
+    <div class="p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Path through the flow</h2>
+        {% if job.flow %}
+          <a href="{{ job.flow.get_absolute_url }}" class="text-xs text-cyan-600 hover:underline dark:text-cyan-400">
+            Open {{ job.flow.name }}
+          </a>
+        {% endif %}
+      </div>
+      <ol class="space-y-2">
+        {% for step in job.trace %}
+          <li class="flex items-center gap-3 text-sm">
+            <span class="grid w-6 h-6 text-xs rounded-full shrink-0 place-items-center bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">{{ forloop.counter }}</span>
+            <span class="flex-1 text-gray-900 dark:text-white">{{ step.label }}</span>
+            {% if step.output_label %}
+              <span class="px-2.5 py-0.5 text-xs rounded-full bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300">{{ step.output_label }}</span>
+            {% elif step.output == 0 %}
+              <span class="text-xs text-gray-500 dark:text-gray-400">end</span>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+    </div>
+  {% endif %}
+
   {% if job.command %}
     <div class="p-5 bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-700">
       <h2 class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Command</h2>

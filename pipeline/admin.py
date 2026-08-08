@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Job, Library, MediaFile, TranscodeProfile, Worker
+from .models import Flow, Job, Library, MediaFile, TranscodeProfile, Worker
 
 
 @admin.register(Library)
@@ -34,3 +34,10 @@ class JobAdmin(admin.ModelAdmin):
 @admin.register(Worker)
 class WorkerAdmin(admin.ModelAdmin):
     list_display = ["name", "hostname", "enabled", "last_heartbeat", "jobs_completed"]
+
+
+@admin.register(Flow)
+class FlowAdmin(admin.ModelAdmin):
+    list_display = ["name", "enabled", "node_count", "revision", "updated_at"]
+    list_filter = ["enabled"]
+    readonly_fields = ["revision"]

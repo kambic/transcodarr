@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import flow_views, views
 
 app_name = "pipeline"
 
@@ -33,6 +33,15 @@ urlpatterns = [
     path("profiles/", views.profile_list, name="profile_list"),
     path("profiles/new/", views.profile_form, name="profile_create"),
     path("profiles/<int:pk>/edit/", views.profile_form, name="profile_edit"),
+
+    path("flows/", flow_views.flow_list, name="flow_list"),
+    path("flows/new/", flow_views.flow_create, name="flow_create"),
+    path("flows/<int:pk>/", flow_views.flow_editor, name="flow_editor"),
+    path("flows/<int:pk>/save/", flow_views.flow_save, name="flow_save"),
+    path("flows/<int:pk>/test/", flow_views.flow_test, name="flow_test"),
+    path("flows/<int:pk>/validate/", flow_views.flow_validate, name="flow_validate"),
+    path("flows/<int:pk>/duplicate/", flow_views.flow_duplicate, name="flow_duplicate"),
+    path("flows/<int:pk>/delete/", flow_views.flow_delete, name="flow_delete"),
 
     path("workers/", views.worker_list, name="worker_list"),
 ]

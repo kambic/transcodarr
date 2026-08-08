@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Flows · Transcodarr{% endblock %}
+
+{% block content %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Flows</h1>
+    <p class="text-sm text-gray-500 dark:text-gray-400">
+      Draw what should happen to a file. A library with a flow ignores its profile.
+    </p>
+  </div>
+  <form method="post" action="{% url 'pipeline:flow_create' %}" class="flex gap-2">
+    {% csrf_token %}
+    <input type="text" name="name" placeholder="Flow name"
+           class="p-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white">
+    <button type="submit" class="px-4 py-2 text-sm font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400 whitespace-nowrap">
+      New flow
+    </button>
+  </form>
+</div>
+
+<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+  {% for flow in flows %}
+    <div class="flex flex-col p-5 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+      <div class="flex items-start justify-between gap-2">
+        <a href="{{ flow.get_absolute_url }}" class="text-lg font-semibold text-gray-900 dark:text-white hover:underline">{{ flow.name }}</a>
+        {% if not flow.enabled %}
+          <span class="px-2.5 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">Off</span>
+        {% endif %}
+      </div>
+      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ flow.description|default:"No description." }}</p>
+
+      <div class="flex flex-wrap gap-2 mt-4 text-xs">
+        <span class="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">{{ flow.node_count }} node{{ flow.node_count|pluralize }}</span>
+        <span class="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">rev {{ flow.revision }}</span>
+        <span class="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+          {{ flow.library_count }} librar{{ flow.library_count|pluralize:"y,ies" }}
+        </span>
+      </div>
+
+      {% with problems=flow.problems %}
+        {% if problems %}
+          <p class="mt-3 text-xs text-amber-600 dark:text-amber-400">
+            {{ problems|length }} thing{{ problems|length|pluralize }} to fix — {{ problems.0 }}
+          </p>
+        {% endif %}
+      {% endwith %}
+
+      <div class="flex gap-2 mt-auto pt-4">
+        <a href="{{ flow.get_absolute_url }}"
+           class="px-3 py-1.5 text-xs font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">Open editor</a>
+        <form method="post" action="{% url 'pipeline:flow_duplicate' flow.pk %}">{% csrf_token %}
+          <button class="px-3 py-1.5 text-xs font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600">Duplicate</button>
+        </form>
+        <form method="post" action="{% url 'pipeline:flow_delete' flow.pk %}"
+              onsubmit="return confirm('Delete {{ flow.name|escapejs }}? Libraries using it fall back to their profile.')">{% csrf_token %}
+          <button class="px-3 py-1.5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 dark:bg-gray-700 dark:border-red-900 dark:text-red-400">Delete</button>
+        </form>
+      </div>
+    </div>
+  {% empty %}
+    <div class="p-10 text-center bg-white border border-gray-200 border-dashed rounded-lg md:col-span-2 xl:col-span-3 dark:bg-gray-800 dark:border-gray-700">
+      <p class="text-base font-medium text-gray-900 dark:text-white">No flows yet</p>
+      <p class="max-w-md mx-auto mt-1 text-sm text-gray-500 dark:text-gray-400">
+        A flow is a diagram: check the codec, branch on the answer, transcode one way and leave the other alone.
+        New flows start with a working example you can rearrange.
+      </p>
+      <form method="post" action="{% url 'pipeline:flow_create' %}" class="mt-4">{% csrf_token %}
+        <button class="px-4 py-2 text-sm font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">Create your first flow</button>
+      </form>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

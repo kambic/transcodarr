@@ -36,6 +36,7 @@ class LibraryForm(FlowbiteFormMixin, forms.ModelForm):
             "name",
             "path",
             "profile",
+            "flow",
             "extensions",
             "scan_interval_minutes",
             "auto_queue",

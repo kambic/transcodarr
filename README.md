@@ -7,6 +7,9 @@ one against a target profile, and queues the ones that fall short. Workers run
 `ffmpeg`, stream progress back, and replace the source file only if the result
 is actually smaller.
 
+What happens to a file is drawn, not configured: flows are node graphs you
+build on a canvas, the way FileFlows does it.
+
 Built with **Django Tasks** for background work, **template partials** for
 htmx fragments, and **Flowbite** for the interface.
 
@@ -65,15 +68,23 @@ mid-run.
 ## How it fits together
 
 ```
-Library (folder + profile)
-   └── scan_library ──────► MediaFile rows
-                               └── probe_file ──► ffprobe → rules.evaluate()
-                                                     │
-                                            needs_transcode?
-                                                     │
-                                          queue_transcode() → Job row
-                                                     │
-                                             run_transcode ──► ffmpeg
+Library (folder + flow or profile)
+   └── scan_library ─────► MediaFile rows
+                              └── probe_file ──► ffprobe
+                                                    │
+                                        ┌───────────┴───────────┐
+                                   has a flow?              no flow
+                                        │                       │
+                                 flow dry run            rules.evaluate()
+                                        │                       │
+                                        └──── needs work? ──────┘
+                                                    │
+                                              Job row queued
+                                                    │
+                                    ┌───────────────┴───────────────┐
+                                run_flow                      run_transcode
+                             (walks the graph,              (one encode from
+                              actions run for real)          the profile)
 ```
 
 **`Job` versus `TaskResult`.** The Tasks framework owns scheduling, retries and
@@ -82,16 +93,119 @@ speed, ETA, byte counts, the exact command, and a log tail. They're linked by
 `Job.task_result_id`. A `Job` row is created *before* the task is enqueued, so
 work shows up in the queue immediately even when every worker is busy.
 
-**Rules.** `pipeline/rules.py` holds one function per check — codec, container,
-height, bitrate. Each returns a reason string on failure or `None` on pass. Add
-a function, list it in `RULES`, and it applies on the next probe. The reason
-string is what the UI shows ("Video is mpeg4, target is h264"), so write it for
-a person.
+**Deciding what to do.** Two mechanisms, and a library picks one:
+
+- A **flow** — a node graph drawn in the editor. Takes precedence when set.
+- A **profile** plus `pipeline/rules.py` — four hardcoded checks (codec,
+  container, height, bitrate). Simpler, fine when every file gets the same
+  treatment.
+
+Either way the outcome is a verdict and a human-readable reason, which is what
+the Files page shows ("Video is mpeg4, target is h264").
 
 **Safety rails.** Encodes are written to a cache directory and only moved into
 place afterwards. If the result exceeds `MAX_OUTPUT_SIZE_RATIO` of the original,
 the source is kept and the file is marked as meeting target. Cancelling sends
 SIGTERM so ffmpeg closes the container cleanly, then deletes the partial file.
+
+---
+
+## Flows
+
+A flow is a diagram of what should happen to a file. Open **Flows → New flow**
+and you get a working example: check the codec, leave HEVC alone, transcode
+everything else.
+
+### How a flow runs
+
+Every flow runs **twice** per file, over the same graph:
+
+| Pass | When | Conditions | Actions |
+| --- | --- | --- | --- |
+| Dry run | During probing | Evaluated normally | Record what they *would* do |
+| Live | In a transcode worker | Evaluated normally | Actually run |
+
+The dry run is what makes the Files page useful. Answering "does this file need
+work?" by starting a two-hour encode is not an answer, so actions check
+`ctx.dry_run`, call `ctx.plan("Transcode to hevc in mkv")`, and return. That
+string becomes the file's verdict reason. If the dry run plans nothing, the file
+is healthy and no job is queued.
+
+### Nodes
+
+Each node returns the number of the output to follow — the same convention
+FileFlows uses. Two values are special: `0` ends the flow normally, `-1` fails it.
+
+**Conditions** (Yes / No outputs): video codec is, audio codec is, container is,
+resolution at least, bitrate above, file size above, runtime longer than,
+filename matches.
+
+**Actions**: transcode video, remux container, move file, write to the log, set
+a variable.
+
+**Endings**: nothing to do, fail the flow.
+
+### Adding a node type
+
+One class. The palette entry, the properties form and the port count are all
+generated from it — there is no JavaScript to touch.
+
+```python
+@register
+class HasSubtitles(Condition):
+    type = "has_subtitles"
+    label = "Has subtitles"
+    icon = "note"
+    description = "Yes when the file carries at least one subtitle stream."
+    fields = [Field("language", "Language", "text", "", placeholder="eng")]
+
+    def test(self, ctx, config) -> bool:
+        return bool(ctx.metadata.get("subtitle_languages"))
+```
+
+Restart the worker and the web process, and it appears in the palette.
+
+### The editor
+
+Vanilla JavaScript, no build step.
+
+- Drag from the palette, or click a palette entry to drop one in the middle.
+- Drag a node by its header. Drag from an output port to another node to wire
+  them up. Reconnecting an output replaces its old connection — one edge per
+  output, so a branch can never be ambiguous.
+- Click a node for its settings; edits show on the node immediately.
+- `Delete` removes the selection. `Ctrl/Cmd+S` saves. Scroll to zoom, drag the
+  background to pan, `Fit` re-centres.
+- **Test with a file** dry-runs the graph *currently on the canvas* against a
+  real file and lights up the path it took, with the branch chosen at each step.
+  You can try a change before saving it.
+
+Warnings appear above the canvas: no input node, two input nodes, a branch that
+goes nowhere, an orphaned node.
+
+### Storage and trust
+
+The graph is one JSON document on `Flow.graph`:
+
+```json
+{"nodes": [{"id": "n1", "type": "video_codec_is", "x": 400, "y": 180,
+            "config": {"codecs": "hevc"}}],
+ "edges": [{"from": "n1", "output": 2, "to": "n4"}]}
+```
+
+One write per save, so a canvas save is atomic — no half-applied layout if the
+request dies. Nothing queries inside a graph, so normalising it into node and
+edge tables would buy nothing.
+
+The canvas is user input, so `flow_save` rebuilds the graph rather than trusting
+it: unknown node types are dropped, edges pointing at nodes that no longer exist
+are dropped, and config keys the node doesn't declare are stripped. A graph that
+reaches a worker is always one the worker can run.
+
+The engine stops after 250 steps, so a loop drawn by accident fails the job
+instead of pinning a CPU forever. Every run records a trace — the nodes visited
+and the output taken at each — shown on the job detail page and replayed by the
+editor's test button.
 
 ---
 
@@ -266,8 +380,9 @@ encoders.
 ./manage.py test pipeline
 ```
 
-Nine tests covering rule evaluation, task behaviour with mocked ffprobe, and
-that htmx requests really do return fragments rather than whole pages.
+Twenty-one tests covering rule evaluation, task behaviour with mocked ffprobe,
+flow branching, loop protection, the sanitising done on save, and that htmx
+requests really do return fragments rather than whole pages.
 
 ---
 
@@ -276,11 +391,17 @@ that htmx requests really do return fragments rather than whole pages.
 ```
 config/            settings, urls, wsgi/asgi
 pipeline/
-  models.py        Library, TranscodeProfile, MediaFile, Job, Worker
+  models.py        Flow, Library, TranscodeProfile, MediaFile, Job, Worker
   tasks.py         scan_library, probe_file, run_transcode, sweeps
+  flow_tasks.py    run_flow, and the dry run used during probing
   ffmpeg.py        ffprobe/ffmpeg wrapper, progress parsing, cancellation
-  rules.py         one function per profile check
+  rules.py         one function per profile check (the no-flow path)
+  flows/
+    registry.py    node base classes, field and output schema
+    nodes.py       the node library — one class per palette entry
+    engine.py      the graph walker, dry run, validation
   views.py         pages and their htmx partials
+  flow_views.py    editor, save, test run
   forms.py         Flowbite-styled model forms
   templatetags/    badges, durations, querystring helpers
 templates/

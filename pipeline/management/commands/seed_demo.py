@@ -13,8 +13,10 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from pipeline.flows import engine
 from pipeline.models import (
     Container,
+    Flow,
     FileStatus,
     HWAccel,
     Job,
@@ -68,9 +70,22 @@ class Command(BaseCommand):
             defaults={"video_codec": "av1", "container": Container.MKV, "quality": 32, "preset": "6"},
         )
 
+        flow, _ = Flow.objects.get_or_create(
+            name="Everything to HEVC",
+            defaults={
+                "description": "Leave HEVC alone, re-encode the rest. Edit it on the Flows page.",
+                "graph": engine.default_graph(),
+            },
+        )
+
         library, _ = Library.objects.get_or_create(
             name="TV shows",
-            defaults={"path": str(root), "profile": hevc, "last_scan_finished_at": timezone.now()},
+            defaults={
+                "path": str(root),
+                "profile": hevc,
+                "flow": flow,
+                "last_scan_finished_at": timezone.now(),
+            },
         )
 
         created = 0

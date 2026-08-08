@@ -1,0 +1,586 @@
+{% extends "base.html" %}
+{% block title %}{{ flow.name }} · Flows · Transcodarr{% endblock %}
+
+{% block content %}
+<script id="node-types" type="application/json">{{ node_types_json|safe }}</script>
+<script id="initial-graph" type="application/json">{{ graph_json|safe }}</script>
+
+<div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+  <div class="flex items-center gap-3 min-w-0">
+    <a href="{% url 'pipeline:flow_list' %}" class="text-sm text-gray-500 hover:underline dark:text-gray-400">Flows</a>
+    <span class="text-gray-300 dark:text-gray-600">/</span>
+    <input id="flow-name" value="{{ flow.name }}"
+           class="px-2 py-1 text-xl font-semibold bg-transparent border border-transparent rounded-lg text-gray-900 dark:text-white hover:border-gray-300 focus:border-cyan-500 focus:ring-0 dark:hover:border-gray-600">
+  </div>
+  <div class="flex items-center gap-2">
+    <span id="save-state" class="text-xs text-gray-500 dark:text-gray-400">Saved · rev {{ flow.revision }}</span>
+    <button id="btn-fit" class="px-3 py-2 text-xs font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700">Fit</button>
+    <button id="btn-test" class="px-3 py-2 text-xs font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-800 dark:text-white dark:border-gray-600 dark:hover:bg-gray-700">Test with a file</button>
+    <button id="btn-save" class="px-4 py-2 text-xs font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">Save</button>
+  </div>
+</div>
+
+<div id="problems" class="hidden p-3 mb-3 text-sm rounded-lg bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"></div>
+
+<div class="flex gap-3 h-[calc(100vh-11rem)] min-h-[520px]">
+
+  <!-- Palette -->
+  <aside class="flex flex-col w-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shrink-0 dark:bg-gray-800 dark:border-gray-700">
+    <p class="px-3 py-2 text-xs font-semibold tracking-wide text-gray-500 uppercase border-b border-gray-200 dark:text-gray-400 dark:border-gray-700">
+      Nodes
+    </p>
+    <div id="palette" class="p-2 space-y-1"></div>
+    <p class="p-3 mt-auto text-xs text-gray-400 border-t border-gray-200 dark:text-gray-500 dark:border-gray-700">
+      Drag onto the canvas, or click to drop one in the middle.
+    </p>
+  </aside>
+
+  <!-- Canvas -->
+  <div id="viewport" class="relative flex-1 overflow-hidden bg-gray-100 border border-gray-200 rounded-lg cursor-grab dark:bg-gray-900 dark:border-gray-700">
+    <div id="world" class="absolute top-0 left-0 origin-top-left">
+      <svg id="wires" width="8000" height="6000" class="absolute top-0 left-0 pointer-events-none overflow-visible">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g id="wire-layer" class="text-gray-400 dark:text-gray-600"></g>
+        <path id="temp-wire" class="hidden text-cyan-500" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"></path>
+      </svg>
+      <div id="nodes"></div>
+    </div>
+
+    <div class="absolute flex gap-1 bottom-3 left-3">
+      <button data-zoom="-1" class="w-8 h-8 text-lg leading-none bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-600 dark:text-white">−</button>
+      <button data-zoom="1" class="w-8 h-8 text-lg leading-none bg-white border border-gray-200 rounded-lg dark:bg-gray-800 dark:border-gray-600 dark:text-white">+</button>
+      <span id="zoom-label" class="px-2 text-xs leading-8 text-gray-500 dark:text-gray-400">100%</span>
+    </div>
+    <p class="absolute text-xs text-gray-400 pointer-events-none bottom-3 right-3 dark:text-gray-600">
+      Drag a port to connect · Delete removes the selection
+    </p>
+  </div>
+
+  <!-- Inspector -->
+  <aside class="flex flex-col overflow-y-auto bg-white border border-gray-200 rounded-lg w-80 shrink-0 dark:bg-gray-800 dark:border-gray-700">
+    <div id="inspector" class="p-4"></div>
+
+    <div id="test-panel" class="hidden p-4 mt-auto border-t border-gray-200 dark:border-gray-700">
+      <p class="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">Test run</p>
+      <select id="test-file" class="w-full p-2 mb-2 text-sm border border-gray-300 rounded-lg bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        {% for file in sample_files %}
+          <option value="{{ file.pk }}">{{ file.rel_path }} — {{ file.video_codec }} {{ file.resolution_label }}</option>
+        {% empty %}
+          <option value="">No probed files to test with</option>
+        {% endfor %}
+      </select>
+      <button id="btn-run-test" class="w-full px-3 py-2 text-xs font-medium text-gray-900 rounded-lg bg-cyan-500 hover:bg-cyan-400">
+        Run this file through the flow
+      </button>
+      <div id="test-result" class="mt-3 text-xs"></div>
+    </div>
+  </aside>
+</div>
+
+<style>
+  #viewport { background-image: radial-gradient(currentColor 1px, transparent 1px); background-size: 22px 22px; color: rgba(0,0,0,.10); }
+  .dark #viewport { color: rgba(255,255,255,.07); }
+  .fnode { position: absolute; width: 224px; user-select: none; }
+  .fnode.selected { outline: 2px solid rgb(6 182 212); outline-offset: 2px; }
+  .fnode.traced  { box-shadow: 0 0 0 2px rgb(16 185 129); }
+  .port { width: 13px; height: 13px; border-radius: 9999px; border: 2px solid currentColor; background: var(--tw-bg-opacity, #fff); }
+  .dark .port { background: #1f2937; }
+  .port.filled { background: currentColor; }
+  .wire { fill: none; stroke: currentColor; stroke-width: 2; pointer-events: stroke; cursor: pointer; }
+  .wire.hit { stroke-width: 14; stroke: transparent; }
+  .wire.selected { stroke: rgb(6 182 212); stroke-width: 3; }
+  .wire.traced { stroke: rgb(16 185 129); stroke-width: 3; }
+</style>
+
+<script>
+(() => {
+  "use strict";
+  const CSRF = "{{ csrf_token }}";
+  const SAVE_URL = "{% url 'pipeline:flow_save' flow.pk %}";
+  const TEST_URL = "{% url 'pipeline:flow_test' flow.pk %}";
+
+  const TYPES = {};
+  JSON.parse(document.getElementById("node-types").textContent).forEach(t => TYPES[t.type] = t);
+  let graph = JSON.parse(document.getElementById("initial-graph").textContent);
+  graph.nodes ||= []; graph.edges ||= [];
+
+  const el = id => document.getElementById(id);
+  const viewport = el("viewport"), world = el("world");
+  const nodeLayer = el("nodes"), wireLayer = el("wire-layer"), tempWire = el("temp-wire");
+
+  let view = { x: 40, y: 20, k: 1 };
+  let selection = null;              // {kind: "node"|"edge", id} | null
+  let dirty = false;
+  let lastTrace = null;
+
+  const CATEGORY = {
+    input:  { ring: "border-cyan-400 dark:border-cyan-600",   chip: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-300" },
+    logic:  { ring: "border-violet-300 dark:border-violet-700", chip: "bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-300" },
+    action: { ring: "border-amber-300 dark:border-amber-700", chip: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300" },
+    flow:   { ring: "border-gray-300 dark:border-gray-600",   chip: "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300" },
+  };
+  const TONE = { yes: "text-emerald-500", no: "text-rose-400", neutral: "text-gray-400 dark:text-gray-500" };
+
+  // ---------------------------------------------------------------- helpers
+  const nodeById = id => graph.nodes.find(n => n.id === id);
+  const uid = () => "n" + Math.random().toString(36).slice(2, 9);
+  const markDirty = () => { dirty = true; el("save-state").textContent = "Unsaved changes"; };
+
+  function toWorld(clientX, clientY) {
+    const r = viewport.getBoundingClientRect();
+    return { x: (clientX - r.left - view.x) / view.k, y: (clientY - r.top - view.y) / view.k };
+  }
+  function applyView() {
+    world.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`;
+    el("zoom-label").textContent = Math.round(view.k * 100) + "%";
+  }
+
+  // ------------------------------------------------------------- rendering
+  function render() {
+    nodeLayer.innerHTML = "";
+    graph.nodes.forEach(node => nodeLayer.appendChild(buildNode(node)));
+    drawWires();
+    renderInspector();
+  }
+
+  function buildNode(node) {
+    const def = TYPES[node.type];
+    const cat = CATEGORY[def?.category] || CATEGORY.flow;
+    const box = document.createElement("div");
+    box.className = `fnode rounded-lg border bg-white shadow-sm dark:bg-gray-800 ${cat.ring}`;
+    box.style.left = node.x + "px";
+    box.style.top = node.y + "px";
+    box.dataset.node = node.id;
+    if (selection?.kind === "node" && selection.id === node.id) box.classList.add("selected");
+
+    const outputs = def?.outputs || [];
+    const summary = summaryFor(node, def);
+
+    box.innerHTML = `
+      ${def?.category === "input" ? "" : `
+        <div class="absolute left-1/2 -translate-x-1/2 -top-[7px]">
+          <div class="port port-in text-gray-400 dark:text-gray-500" data-in="${node.id}"></div>
+        </div>`}
+      <div class="node-head flex items-center gap-2 px-3 py-2 rounded-t-lg cursor-move border-b ${cat.ring} bg-gray-50 dark:bg-gray-700/40">
+        <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded ${cat.chip}">${(def?.category || "").toUpperCase()}</span>
+        <span class="text-sm font-medium truncate text-gray-900 dark:text-white">${escapeHtml(def?.label || node.type)}</span>
+      </div>
+      <div class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 min-h-[2rem]">
+        ${summary ? escapeHtml(summary) : '<span class="italic opacity-60">Not configured</span>'}
+      </div>
+      ${outputs.length ? `
+        <div class="flex justify-around px-2 pb-2 pt-1">
+          ${outputs.map((o, i) => `
+            <div class="flex flex-col items-center gap-1 cursor-crosshair port-out-wrap" data-out="${node.id}" data-index="${i + 1}">
+              <span class="text-[10px] ${TONE[o.tone] || TONE.neutral}">${escapeHtml(o.label)}</span>
+              <div class="port port-out ${isWired(node.id, i + 1) ? "filled" : ""} ${TONE[o.tone] || TONE.neutral}"></div>
+            </div>`).join("")}
+        </div>` : `
+        <div class="px-3 pb-2 text-[10px] text-gray-400 dark:text-gray-500">Ends the flow</div>`}
+    `;
+    return box;
+  }
+
+  function summaryFor(node, def) {
+    if (!def) return "";
+    const c = node.config || {};
+    switch (node.type) {
+      case "input_file": return "Every run starts here";
+      case "video_codec_is": case "audio_codec_is": return `is ${c.codecs || "…"}`;
+      case "container_is": return `is ${c.container || "…"}`;
+      case "resolution_at_least": return `≥ ${c.height || "…"}p`;
+      case "bitrate_above": return `> ${c.kbps || "…"} kbps`;
+      case "file_size_above": return `> ${c.mb || "…"} MB`;
+      case "duration_longer_than": return `> ${c.minutes || "…"} min`;
+      case "filename_matches": return c.pattern || "no pattern";
+      case "transcode_video": {
+        const bits = [c.video_codec || "hevc", "q" + (c.quality ?? 24)];
+        if (Number(c.max_height)) bits.push(c.max_height + "p");
+        if (c.hw_accel && c.hw_accel !== "none") bits.push(c.hw_accel);
+        return bits.join(" · ");
+      }
+      case "remux_container": return `to ${c.container || "mkv"}`;
+      case "move_file": return c.destination || "no destination";
+      case "log_message": return c.message || "empty message";
+      case "set_variable": return `${c.name || "…"} = ${c.value || "…"}`;
+      case "complete_flow": case "fail_flow": return c.reason || "";
+      default: return def.description || "";
+    }
+  }
+
+  const isWired = (id, out) => graph.edges.some(e => e.from === id && e.output === out);
+
+  function portCentre(nodeId, outIndex) {
+    const box = nodeLayer.querySelector(`[data-node="${nodeId}"]`);
+    if (!box) return null;
+    const node = nodeById(nodeId);
+    if (outIndex === 0) {  // input port, top centre
+      return { x: node.x + box.offsetWidth / 2, y: node.y };
+    }
+    const wrap = box.querySelector(`[data-out="${nodeId}"][data-index="${outIndex}"] .port-out`);
+    if (!wrap) return null;
+    // offsetLeft/Top are unscaled layout values, so zoom doesn't distort them.
+    let x = wrap.offsetLeft + wrap.offsetWidth / 2, y = wrap.offsetTop + wrap.offsetHeight / 2;
+    for (let p = wrap.offsetParent; p && p !== box; p = p.offsetParent) { x += p.offsetLeft; y += p.offsetTop; }
+    return { x: node.x + x, y: node.y + y };
+  }
+
+  const curve = (a, b) => {
+    const d = Math.max(40, Math.abs(b.y - a.y) / 2);
+    return `M ${a.x} ${a.y} C ${a.x} ${a.y + d}, ${b.x} ${b.y - d}, ${b.x} ${b.y}`;
+  };
+
+  function drawWires() {
+    wireLayer.innerHTML = "";
+    graph.edges.forEach((edge, index) => {
+      const a = portCentre(edge.from, edge.output), b = portCentre(edge.to, 0);
+      if (!a || !b) return;
+      const d = curve(a, b);
+      const key = `${edge.from}:${edge.output}`;
+
+      const hit = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      hit.setAttribute("d", d); hit.setAttribute("class", "wire hit"); hit.dataset.edge = index;
+      wireLayer.appendChild(hit);
+
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      line.setAttribute("d", d);
+      line.setAttribute("marker-end", "url(#arrow)");
+      let cls = "wire";
+      if (selection?.kind === "edge" && selection.id === index) cls += " selected";
+      if (lastTrace?.edges.has(key)) cls += " traced";
+      line.setAttribute("class", cls);
+      line.dataset.edge = index;
+      wireLayer.appendChild(line);
+    });
+  }
+
+  // ------------------------------------------------------------- inspector
+  function renderInspector() {
+    const box = el("inspector");
+    if (selection?.kind === "edge") {
+      const edge = graph.edges[selection.id];
+      box.innerHTML = `
+        <p class="text-sm font-medium text-gray-900 dark:text-white">Connection</p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          ${escapeHtml(TYPES[nodeById(edge.from)?.type]?.label || "?")} →
+          ${escapeHtml(TYPES[nodeById(edge.to)?.type]?.label || "?")}
+        </p>
+        <button id="drop-edge" class="w-full px-3 py-2 mt-4 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 dark:bg-gray-700 dark:border-red-900 dark:text-red-400">Remove connection</button>`;
+      el("drop-edge").onclick = () => { graph.edges.splice(selection.id, 1); selection = null; markDirty(); render(); };
+      return;
+    }
+    if (selection?.kind !== "node") {
+      box.innerHTML = `
+        <p class="text-sm font-medium text-gray-900 dark:text-white">Nothing selected</p>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Pick a node to change its settings, or drag one in from the left.
+        </p>
+        <dl class="mt-4 space-y-2 text-xs text-gray-500 dark:text-gray-400">
+          <div class="flex justify-between"><dt>Nodes</dt><dd>${graph.nodes.length}</dd></div>
+          <div class="flex justify-between"><dt>Connections</dt><dd>${graph.edges.length}</dd></div>
+        </dl>`;
+      return;
+    }
+
+    const node = nodeById(selection.id), def = TYPES[node.type];
+    const fields = (def.fields || []).map(f => fieldHtml(f, node.config?.[f.name])).join("");
+    box.innerHTML = `
+      <p class="text-sm font-medium text-gray-900 dark:text-white">${escapeHtml(def.label)}</p>
+      <p class="mt-1 mb-4 text-xs text-gray-500 dark:text-gray-400">${escapeHtml(def.description)}</p>
+      <div class="space-y-3">${fields || '<p class="text-xs text-gray-400">No settings.</p>'}</div>
+      ${def.category === "input" ? "" : `
+        <button id="drop-node" class="w-full px-3 py-2 mt-5 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 dark:bg-gray-700 dark:border-red-900 dark:text-red-400">Remove this node</button>`}`;
+
+    box.querySelectorAll("[data-field]").forEach(input => {
+      input.addEventListener("change", () => {
+        node.config ||= {};
+        node.config[input.dataset.field] = input.type === "checkbox" ? input.checked : input.value;
+        markDirty();
+        const fresh = buildNode(node);
+        nodeLayer.querySelector(`[data-node="${node.id}"]`).replaceWith(fresh);
+        drawWires();
+      });
+    });
+    const drop = el("drop-node");
+    if (drop) drop.onclick = () => removeNode(node.id);
+  }
+
+  function fieldHtml(f, value) {
+    const v = value === undefined ? f.default : value;
+    const base = "block w-full p-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:ring-cyan-500 focus:border-cyan-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white";
+    let control;
+    if (f.type === "select") {
+      control = `<select data-field="${f.name}" class="${base}">${
+        f.choices.map(c => `<option value="${escapeHtml(c.value)}" ${String(v) === String(c.value) ? "selected" : ""}>${escapeHtml(c.label)}</option>`).join("")
+      }</select>`;
+    } else if (f.type === "checkbox") {
+      return `<label class="flex items-center gap-2 text-sm text-gray-900 dark:text-white">
+        <input type="checkbox" data-field="${f.name}" ${v ? "checked" : ""}
+               class="w-4 h-4 rounded text-cyan-600 border-gray-300 focus:ring-cyan-500 dark:bg-gray-700 dark:border-gray-600">
+        ${escapeHtml(f.label)}</label>`;
+    } else if (f.type === "textarea") {
+      control = `<textarea data-field="${f.name}" rows="3" class="${base}">${escapeHtml(String(v ?? ""))}</textarea>`;
+    } else {
+      const type = f.type === "number" ? "number" : "text";
+      control = `<input type="${type}" data-field="${f.name}" value="${escapeHtml(String(v ?? ""))}"
+                        placeholder="${escapeHtml(f.placeholder || "")}" class="${base}">`;
+    }
+    return `<div>
+      <label class="block mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">${escapeHtml(f.label)}</label>
+      ${control}
+      ${f.help ? `<p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">${escapeHtml(f.help)}</p>` : ""}
+    </div>`;
+  }
+
+  // --------------------------------------------------------------- palette
+  function buildPalette() {
+    const groups = {};
+    Object.values(TYPES).forEach(t => (groups[t.category] ||= []).push(t));
+    const order = ["input", "logic", "action", "flow"];
+    const titles = { input: "Start", logic: "Conditions", action: "Actions", flow: "Endings" };
+    el("palette").innerHTML = order.filter(c => groups[c]).map(c => `
+      <p class="px-1 pt-2 pb-1 text-[10px] font-semibold tracking-wide text-gray-400 uppercase">${titles[c]}</p>
+      ${groups[c].map(t => `
+        <button draggable="true" data-type="${t.type}" title="${escapeHtml(t.description)}"
+                class="w-full px-2 py-1.5 text-left text-xs rounded-lg border ${CATEGORY[c].ring} bg-white hover:bg-gray-50 text-gray-800 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+          ${escapeHtml(t.label)}
+        </button>`).join("")}
+    `).join("");
+
+    el("palette").querySelectorAll("[data-type]").forEach(button => {
+      button.addEventListener("dragstart", e => e.dataTransfer.setData("text/plain", button.dataset.type));
+      button.addEventListener("click", () => {
+        const r = viewport.getBoundingClientRect();
+        addNode(button.dataset.type, toWorld(r.left + r.width / 2, r.top + r.height / 3));
+      });
+    });
+  }
+
+  function addNode(type, at) {
+    const def = TYPES[type];
+    if (!def) return;
+    if (type === "input_file" && graph.nodes.some(n => n.type === "input_file")) {
+      flash("A flow can only have one input node.");
+      return;
+    }
+    const config = {};
+    (def.fields || []).forEach(f => config[f.name] = f.default);
+    const node = { id: uid(), type, x: Math.round(at.x - 112), y: Math.round(at.y - 20), config };
+    graph.nodes.push(node);
+    selection = { kind: "node", id: node.id };
+    markDirty(); render();
+  }
+
+  function removeNode(id) {
+    graph.nodes = graph.nodes.filter(n => n.id !== id);
+    graph.edges = graph.edges.filter(e => e.from !== id && e.to !== id);
+    selection = null; markDirty(); render();
+  }
+
+  viewport.addEventListener("dragover", e => e.preventDefault());
+  viewport.addEventListener("drop", e => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData("text/plain");
+    if (type) addNode(type, toWorld(e.clientX, e.clientY));
+  });
+
+  // ------------------------------------------------- dragging and wiring
+  let drag = null;
+
+  viewport.addEventListener("pointerdown", e => {
+    const portWrap = e.target.closest(".port-out-wrap");
+    const head = e.target.closest(".node-head");
+    const nodeBox = e.target.closest(".fnode");
+    const wire = e.target.closest("[data-edge]");
+
+    if (portWrap) {
+      drag = { mode: "wire", from: portWrap.dataset.out, output: Number(portWrap.dataset.index) };
+      tempWire.classList.remove("hidden");
+      viewport.setPointerCapture(e.pointerId);
+      e.preventDefault();
+      return;
+    }
+    if (head && nodeBox) {
+      const node = nodeById(nodeBox.dataset.node);
+      const start = toWorld(e.clientX, e.clientY);
+      drag = { mode: "node", node, dx: start.x - node.x, dy: start.y - node.y, moved: false };
+      select("node", node.id);
+      viewport.setPointerCapture(e.pointerId);
+      return;
+    }
+    if (nodeBox) { select("node", nodeBox.dataset.node); return; }
+    if (wire) { select("edge", Number(wire.dataset.edge)); return; }
+
+    drag = { mode: "pan", x: e.clientX - view.x, y: e.clientY - view.y };
+    viewport.style.cursor = "grabbing";
+    select(null);
+  });
+
+  viewport.addEventListener("pointermove", e => {
+    if (!drag) return;
+    if (drag.mode === "pan") {
+      view.x = e.clientX - drag.x; view.y = e.clientY - drag.y; applyView();
+    } else if (drag.mode === "node") {
+      const p = toWorld(e.clientX, e.clientY);
+      drag.node.x = Math.round(p.x - drag.dx); drag.node.y = Math.round(p.y - drag.dy);
+      drag.moved = true;
+      const box = nodeLayer.querySelector(`[data-node="${drag.node.id}"]`);
+      box.style.left = drag.node.x + "px"; box.style.top = drag.node.y + "px";
+      drawWires();
+    } else if (drag.mode === "wire") {
+      const a = portCentre(drag.from, drag.output), b = toWorld(e.clientX, e.clientY);
+      if (a) tempWire.setAttribute("d", curve(a, b));
+    }
+  });
+
+  viewport.addEventListener("pointerup", e => {
+    viewport.style.cursor = "grab";
+    if (!drag) return;
+    if (drag.mode === "wire") {
+      tempWire.classList.add("hidden");
+      const target = document.elementFromPoint(e.clientX, e.clientY)?.closest("[data-in], .fnode");
+      const toId = target?.dataset.in || target?.dataset.node;
+      if (toId && toId !== drag.from && TYPES[nodeById(toId).type]?.category !== "input") {
+        // One connection per output — reconnecting replaces the old one.
+        graph.edges = graph.edges.filter(x => !(x.from === drag.from && x.output === drag.output));
+        graph.edges.push({ from: drag.from, output: drag.output, to: toId });
+        markDirty();
+      }
+      render();
+    } else if (drag.mode === "node" && drag.moved) {
+      markDirty();
+    }
+    drag = null;
+  });
+
+  viewport.addEventListener("wheel", e => {
+    e.preventDefault();
+    const r = viewport.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const next = Math.min(2, Math.max(0.3, view.k * (e.deltaY < 0 ? 1.1 : 0.9)));
+    view.x = mx - (mx - view.x) * (next / view.k);
+    view.y = my - (my - view.y) * (next / view.k);
+    view.k = next; applyView();
+  }, { passive: false });
+
+  document.querySelectorAll("[data-zoom]").forEach(b => b.onclick = () => {
+    view.k = Math.min(2, Math.max(0.3, view.k + 0.15 * Number(b.dataset.zoom)));
+    applyView();
+  });
+
+  function select(kind, id) {
+    selection = kind ? { kind, id } : null;
+    nodeLayer.querySelectorAll(".fnode").forEach(n => n.classList.toggle("selected", kind === "node" && n.dataset.node === id));
+    drawWires(); renderInspector();
+  }
+
+  document.addEventListener("keydown", e => {
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) return;
+    if ((e.key === "Delete" || e.key === "Backspace") && selection) {
+      e.preventDefault();
+      if (selection.kind === "node") {
+        if (TYPES[nodeById(selection.id)?.type]?.category === "input") return flash("The input node has to stay.");
+        removeNode(selection.id);
+      } else {
+        graph.edges.splice(selection.id, 1); selection = null; markDirty(); render();
+      }
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === "s") { e.preventDefault(); save(); }
+  });
+
+  el("btn-fit").onclick = fit;
+  function fit() {
+    if (!graph.nodes.length) return;
+    const xs = graph.nodes.map(n => n.x), ys = graph.nodes.map(n => n.y);
+    const w = Math.max(...xs) + 260 - Math.min(...xs), h = Math.max(...ys) + 200 - Math.min(...ys);
+    const r = viewport.getBoundingClientRect();
+    view.k = Math.min(1.2, Math.max(0.3, Math.min(r.width / w, r.height / h) * 0.9));
+    view.x = (r.width - w * view.k) / 2 - Math.min(...xs) * view.k;
+    view.y = (r.height - h * view.k) / 2 - Math.min(...ys) * view.k;
+    applyView();
+  }
+
+  // ------------------------------------------------------------ save, test
+  async function save() {
+    el("save-state").textContent = "Saving…";
+    const response = await fetch(SAVE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify({ graph, name: el("flow-name").value }),
+    });
+    if (!response.ok) { el("save-state").textContent = "Could not save"; return; }
+    const data = await response.json();
+    dirty = false;
+    el("save-state").textContent = `Saved · rev ${data.revision}`;
+    showProblems(data.problems);
+  }
+  el("btn-save").onclick = save;
+
+  function showProblems(problems) {
+    const box = el("problems");
+    if (!problems?.length) { box.classList.add("hidden"); return; }
+    box.classList.remove("hidden");
+    box.innerHTML = `<p class="font-medium">Worth fixing before this runs:</p>
+      <ul class="mt-1 list-disc list-inside">${problems.map(p => `<li>${escapeHtml(p)}</li>`).join("")}</ul>`;
+  }
+
+  el("btn-test").onclick = () => el("test-panel").classList.toggle("hidden");
+  el("btn-run-test").onclick = async () => {
+    const fileId = el("test-file").value;
+    if (!fileId) return;
+    const response = await fetch(TEST_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify({ file_id: Number(fileId), graph }),
+    });
+    const data = await response.json();
+    const box = el("test-result");
+    if (data.error) { box.innerHTML = `<p class="text-red-500">${escapeHtml(data.error)}</p>`; return; }
+
+    // Light up the path this file took.
+    lastTrace = { nodes: new Set(), edges: new Set() };
+    data.trace.forEach(step => {
+      lastTrace.nodes.add(step.node);
+      if (step.output > 0) lastTrace.edges.add(`${step.node}:${step.output}`);
+    });
+    nodeLayer.querySelectorAll(".fnode").forEach(n => n.classList.toggle("traced", lastTrace.nodes.has(n.dataset.node)));
+    drawWires();
+
+    box.innerHTML = `
+      <p class="${data.needs_work ? "text-amber-500" : "text-emerald-500"} font-medium">
+        ${data.failed ? "Flow failed" : data.needs_work ? "Would be processed" : "Would be left alone"}
+      </p>
+      <p class="mt-1 text-gray-500 dark:text-gray-400">${escapeHtml(data.reason)}</p>
+      <ol class="mt-2 space-y-1">
+        ${data.trace.map((s, i) => `
+          <li class="flex gap-2 text-gray-600 dark:text-gray-400">
+            <span class="text-gray-400">${i + 1}.</span>
+            <span class="flex-1">${escapeHtml(s.label)}</span>
+            ${s.output_label ? `<span class="text-cyan-600 dark:text-cyan-400">${escapeHtml(s.output_label)}</span>` : ""}
+          </li>`).join("")}
+      </ol>
+      ${data.planned.length ? `<p class="mt-2 text-gray-500 dark:text-gray-400">Would run: ${data.planned.map(escapeHtml).join(", ")}</p>` : ""}`;
+  };
+
+  window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+  function flash(message) {
+    document.body.dispatchEvent(new CustomEvent("toast", { detail: { message } }));
+  }
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  buildPalette();
+  applyView();
+  render();
+  fit();
+  fetch("{% url 'pipeline:flow_validate' flow.pk %}").then(r => r.json()).then(d => showProblems(d.problems));
+})();
+</script>
+{% endblock %}
