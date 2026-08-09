@@ -8,3 +8,8 @@ dependencies = [
     "django-tasks-db>=0.12",
     "whitenoise>=6.9",
 ]
+
+[dependency-groups]
+dev = [
+    "django-types>=0.24.0",
+]

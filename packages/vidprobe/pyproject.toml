@@ -1,0 +1,21 @@
+[project]
+name = "vidprobe"
+version = "0.1.0"
+description = "Probe video streams, measure quality, compare encodes and run common FFmpeg edits across multiple FFmpeg builds."
+
+readme = "README.md"
+authors = [
+    { name = "John Nix", email = "john.nix@t14.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "rich>=15.0.0",
+    "typer>=0.27.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+[project.scripts]
+vidprobe = "vidprobe.cli:main"
