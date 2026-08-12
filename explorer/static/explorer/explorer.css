@@ -1,0 +1,30 @@
+:root { font-family: 'Inter Tight', ui-sans-serif, system-ui, sans-serif; }
+body { font-family: 'Inter Tight', ui-sans-serif, system-ui, sans-serif; }
+.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+.item-row.is-selected { background-color: hsl(var(--p) / 0.14); }
+.item-row:hover { background-color: hsl(var(--bc) / 0.06); }
+.item-card.is-selected { outline: 2px solid hsl(var(--p)); outline-offset: -2px; background-color: hsl(var(--p) / 0.08); }
+.item-card:hover { background-color: hsl(var(--bc) / 0.05); }
+.drop-target { outline: 2px dashed hsl(var(--a)); outline-offset: -2px; background-color: hsl(var(--a) / 0.10) !important; border-radius: .5rem; }
+.dragging { opacity: .4; }
+
+.item-card .pick, .item-row .pick-wrap { opacity: 0; }
+.item-card:hover .pick, .item-card.is-selected .pick,
+.item-row:hover .pick-wrap, .item-row.is-selected .pick-wrap { opacity: 1; }
+
+#ctxmenu { position: fixed; z-index: 60; min-width: 13rem; }
+#activity-panel { transition: transform .2s ease; }
+
+.scroll-area { scrollbar-width: thin; }
+.scroll-area::-webkit-scrollbar { width: 9px; height: 9px; }
+.scroll-area::-webkit-scrollbar-thumb { background: hsl(var(--bc) / .22); border-radius: 9px; }
+
+.grid-cols-files { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+
+/* htmx request feedback */
+.htmx-request #listing { opacity: .55; transition: opacity .12s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
