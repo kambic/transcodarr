@@ -1,0 +1,10 @@
+<div class="volume__control button">
+    <button class="volume__button">
+        {{ svg "speaker-simple-high" 24 "volume__icon"}}
+        {{ svg "speaker-simple-slash" 24 "volume__icon-muted hidden"}}
+    </button>
+
+    <div class="volume__bar">
+        <input class="volume__slider" type="range" min="0" max="1" step="0.01" value="0.75" />
+    </div>
+</div>
