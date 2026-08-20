@@ -1,0 +1,145 @@
+{% load humanize explorer_extras %}
+
+{% partialdef new-folder %}
+<dialog class="modal" open>
+  <div class="modal-box max-w-sm">
+    <h3 class="font-bold text-lg mb-3">New folder</h3>
+    <form hx-post="{% url 'explorer:op-new-folder' %}" hx-target="#workspace" hx-swap="innerHTML">
+      <input name="name" value="Untitled folder" class="input input-bordered w-full" autofocus
+             maxlength="255" required aria-label="Folder name">
+      <div class="modal-action">
+        <button type="button" class="btn btn-sm btn-ghost modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-sm btn-primary">Create folder</button>
+      </div>
+    </form>
+  </div>
+  <div class="modal-backdrop bg-black/40"></div>
+</dialog>
+{% endpartialdef %}
+
+{% partialdef rename %}
+<dialog class="modal" open>
+  <div class="modal-box max-w-sm">
+    <h3 class="font-bold text-lg mb-3">Rename</h3>
+    {% if nodes|length != 1 %}
+      <p class="text-sm opacity-70">Renaming works on one item at a time. You have {{ nodes|length }} selected.</p>
+      <div class="modal-action"><button type="button" class="btn btn-sm modal-cancel">Close</button></div>
+    {% else %}
+      <form hx-post="{% url 'explorer:op-rename' %}" hx-target="#workspace" hx-swap="innerHTML">
+        <input type="hidden" name="id" value="{{ node.pk }}">
+        <input name="name" value="{{ node.name }}" class="input input-bordered w-full" autofocus
+               maxlength="255" required aria-label="New name" data-select-stem>
+        <div class="modal-action">
+          <button type="button" class="btn btn-sm btn-ghost modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-primary">Rename</button>
+        </div>
+      </form>
+    {% endif %}
+  </div>
+  <div class="modal-backdrop bg-black/40"></div>
+</dialog>
+{% endpartialdef %}
+
+{% partialdef move %}
+<dialog class="modal" open>
+  <div class="modal-box max-w-md">
+    <h3 class="font-bold text-lg">Move to</h3>
+    <p class="text-sm opacity-70 mt-1">{{ nodes|length }} item{{ nodes|length|pluralize }} will be moved.</p>
+    <form hx-post="{% url 'explorer:op-move' %}" hx-target="#workspace" hx-swap="innerHTML">
+      {% for node in nodes %}<input type="hidden" name="ids" value="{{ node.pk }}">{% endfor %}
+      <ul class="menu menu-sm bg-base-200 rounded-box mt-3 max-h-72 overflow-auto scroll-area w-full flex-nowrap">
+        {% for choice in choices %}
+          <li>
+            <label class="{% if choice.blocked %}opacity-30 pointer-events-none{% endif %}"
+                   style="padding-left:{{ choice.depth|add:1 }}rem">
+              <input type="radio" name="destination" value="{{ choice.node.pk }}" class="radio radio-xs"
+                     {% if choice.blocked %}disabled{% endif %} required>
+              {% node_icon choice.node "w-4 h-4" %}
+              <span class="truncate">{{ choice.node.name }}</span>
+            </label>
+          </li>
+        {% endfor %}
+      </ul>
+      <div class="modal-action">
+        <button type="button" class="btn btn-sm btn-ghost modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-sm btn-primary">Move here</button>
+      </div>
+    </form>
+  </div>
+  <div class="modal-backdrop bg-black/40"></div>
+</dialog>
+{% endpartialdef %}
+
+{% partialdef purge %}
+<dialog class="modal" open>
+  <div class="modal-box max-w-sm">
+    <h3 class="font-bold text-lg">Delete forever?</h3>
+    <p class="py-3 text-sm opacity-80">
+      {% if nodes %}{{ nodes|length }} item{{ nodes|length|pluralize }} will be removed for good.
+      {% else %}Everything in Trash will be removed for good.{% endif %}
+      This is the one action the activity log can't undo.
+    </p>
+    <form hx-post="{% url 'explorer:op-purge' %}" hx-target="#workspace" hx-swap="innerHTML">
+      {% for node in nodes %}<input type="hidden" name="ids" value="{{ node.pk }}">{% endfor %}
+      <div class="modal-action">
+        <button type="button" class="btn btn-sm btn-ghost modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-sm btn-error">Delete forever</button>
+      </div>
+    </form>
+  </div>
+  <div class="modal-backdrop bg-black/40"></div>
+</dialog>
+{% endpartialdef %}
+
+{% partialdef details %}
+<dialog class="modal modal-bottom sm:modal-middle" open>
+  <div class="modal-box">
+    <div class="flex items-center gap-3 mb-4">
+      {% node_icon node "w-10 h-10" %}
+      <div class="min-w-0">
+        <div class="font-medium truncate">{{ node.name }}</div>
+        <div class="text-xs opacity-60">{{ node|facet_label }}</div>
+      </div>
+    </div>
+    <table class="table table-sm">
+      <tbody>
+        <tr><td class="opacity-60 w-28">Size</td><td class="mono text-xs">{{ node.byte_size|filesizeformat }}</td></tr>
+        {% if node.is_folder %}
+          {% with summary=node.child_summary %}
+          <tr><td class="opacity-60">Contains</td><td class="mono text-xs">{{ summary.files }} files, {{ summary.folders }} folders</td></tr>
+          {% endwith %}
+        {% else %}
+          <tr><td class="opacity-60">Type</td><td class="mono text-xs">{{ node.content_type|default:"unknown" }}</td></tr>
+        {% endif %}
+        {% if node.is_scanned %}
+          <tr><td class="opacity-60">Share</td><td class="mono text-xs">{{ node.scan_root.label }}</td></tr>
+          <tr><td class="opacity-60">On disk</td><td class="mono text-xs break-all">{{ node.source_path }}</td></tr>
+          <tr><td class="opacity-60">Share mtime</td><td class="mono text-xs">{{ node.fs_modified_at|default:"—" }}</td></tr>
+          {% if node.missing_since %}<tr><td class="opacity-60 text-warning">Missing since</td><td class="mono text-xs">{{ node.missing_since }}</td></tr>{% endif %}
+        {% endif %}
+        <tr><td class="opacity-60">Location</td><td class="mono text-xs">{% for crumb in node.ancestors %}{{ crumb.name }}{% if not forloop.last %} / {% endif %}{% empty %}—{% endfor %}</td></tr>
+        <tr><td class="opacity-60">Added</td><td class="mono text-xs">{{ node.created_at }}</td></tr>
+        <tr><td class="opacity-60">Modified</td><td class="mono text-xs">{{ node.modified_at }}</td></tr>
+        <tr><td class="opacity-60">Starred</td><td class="mono text-xs">{{ node.starred|yesno:"Yes,No" }}</td></tr>
+      </tbody>
+    </table>
+
+    <h4 class="font-semibold text-sm mt-5 mb-2">History</h4>
+    <ul class="text-xs space-y-1">
+      {% for item in node.history.all|slice:":8" %}
+        <li class="flex items-center gap-2">
+          {{ item.operation|operation_badge }}
+          <span class="opacity-60 mono ml-auto">{{ item.operation.created_at|naturaltime }}</span>
+        </li>
+      {% empty %}
+        <li class="opacity-50">No recorded changes yet.</li>
+      {% endfor %}
+    </ul>
+
+    <div class="modal-action">
+      <button type="button" class="btn btn-sm modal-cancel">Close</button>
+    </div>
+  </div>
+  <div class="modal-backdrop bg-black/40"></div>
+</dialog>
+{% endpartialdef %}

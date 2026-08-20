@@ -1,0 +1,95 @@
+{% load humanize %}
+
+{% partialdef jobs %}
+<div id="transcode-jobs" class="border-b border-base-300"
+     {% if transcode_busy %}hx-get="{% url 'transcode:panel' %}" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML"{% endif %}>
+  {% if transcode_jobs %}
+    <div class="px-4 py-2 flex items-center gap-2 border-b border-base-300">
+      <h3 class="text-xs font-semibold uppercase tracking-wider opacity-60 flex-1">Conversions</h3>
+      <button class="btn btn-ghost btn-xs" hx-post="{% url 'transcode:clear' %}" hx-target="#transcode-jobs" hx-swap="outerHTML">Clear finished</button>
+    </div>
+    <div class="p-2 space-y-1 max-h-64 overflow-auto scroll-area">
+      {% for job in transcode_jobs %}
+        <div class="rounded-box border border-base-300 px-3 py-2 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="truncate flex-1" title="{{ job.source.name }}">{{ job.source.name }}</span>
+            {% if job.status == 'running' or job.status == 'queued' %}
+              <button class="btn btn-ghost btn-xs" hx-post="{% url 'transcode:cancel' job.pk %}" hx-target="#transcode-jobs" hx-swap="outerHTML">Stop</button>
+            {% elif job.status == 'failed' or job.status == 'cancelled' %}
+              <button class="btn btn-ghost btn-xs" hx-post="{% url 'transcode:retry' job.pk %}" hx-target="#transcode-jobs" hx-swap="outerHTML">Retry</button>
+            {% endif %}
+          </div>
+          <div class="flex items-center gap-2 mt-1 opacity-70">
+            <span class="badge badge-xs {% if job.status == 'done' %}badge-success{% elif job.status == 'failed' %}badge-error{% elif job.status == 'running' %}badge-info{% else %}badge-ghost{% endif %}">{{ job.get_status_display }}</span>
+            <span class="truncate">{{ job.preset.label }}</span>
+            <span class="mono ml-auto whitespace-nowrap">{{ job.headline }}</span>
+          </div>
+          {% if job.status == 'running' %}
+            <progress class="progress progress-info w-full h-1 mt-1.5" value="{{ job.progress }}" max="100"></progress>
+          {% elif job.status == 'done' %}
+            <div class="mono opacity-50 mt-0.5">
+              {{ job.source_bytes|filesizeformat }} → {{ job.output_bytes|filesizeformat }}
+              {% if job.elapsed_seconds %}· {{ job.elapsed_seconds }}s{% endif %}
+            </div>
+          {% elif job.error %}
+            <div class="text-error opacity-80 mt-0.5 break-words">{{ job.error|truncatechars:160 }}</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endpartialdef %}
+
+{% partialdef choose %}
+<dialog class="modal" open>
+  <div class="modal-box max-w-lg">
+    <h3 class="font-bold text-lg">Convert media</h3>
+    {% if not ffmpeg_ready %}
+      <div class="alert alert-error mt-3 text-sm">
+        <span>ffmpeg isn't installed on the server, so conversions can't run yet.</span>
+      </div>
+    {% endif %}
+    <p class="text-sm opacity-70 mt-1">
+      {% if eligible_count %}
+        {{ eligible_count }} media file{{ eligible_count|pluralize }} from your selection.
+        Originals are never modified — the result is filed as a new file.
+      {% else %}
+        Nothing in that selection is a media file this can convert.
+      {% endif %}
+    </p>
+
+    {% if eligible_count %}
+      <form hx-post="{% url 'transcode:start' %}" hx-target="#transcode-jobs" hx-swap="outerHTML">
+        {% for id in ids %}<input type="hidden" name="ids" value="{{ id }}">{% endfor %}
+        <ul class="menu menu-sm bg-base-200 rounded-box mt-3 max-h-72 overflow-auto scroll-area w-full flex-nowrap">
+          {% for preset in presets %}
+            <li>
+              <label class="flex items-start gap-3">
+                <input type="radio" name="preset" value="{{ preset.slug }}" class="radio radio-xs mt-1"
+                       {% if forloop.first %}checked{% endif %} required>
+                <span class="flex-1 min-w-0">
+                  <span class="block font-medium">{{ preset.label }}</span>
+                  <span class="block text-xs opacity-60">{{ preset.description|default:preset.summary }}</span>
+                  <span class="block text-[10px] mono opacity-40">{{ preset.summary }} → .{{ preset.container }}</span>
+                </span>
+              </label>
+            </li>
+          {% empty %}
+            <li class="p-3 text-xs opacity-60">No presets are enabled. Add one in the admin.</li>
+          {% endfor %}
+        </ul>
+        <div class="modal-action">
+          <button type="button" class="btn btn-sm btn-ghost modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-primary" {% if not ffmpeg_ready or not presets %}disabled{% endif %}>
+            Start conversion
+          </button>
+        </div>
+      </form>
+    {% else %}
+      <div class="modal-action"><button type="button" class="btn btn-sm modal-cancel">Close</button></div>
+    {% endif %}
+  </div>
+  <div class="modal-backdrop bg-black/40"></div>
+</dialog>
+{% endpartialdef %}
