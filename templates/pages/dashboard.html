@@ -23,7 +23,7 @@
 {# Stat cards. Defined and rendered here; re-fetched by htmx every 5s. #}
 {# ---------------------------------------------------------------- #}
 {% partialdef stats inline %}
-<div id="stats" hx-get="{% url 'pipeline:dashboard_stats' %}" hx-trigger="every 5s" hx-swap="outerHTML"
+<div id="stats" hx-get="{% url 'pipeline:dashboard_stats' %}" hx-trigger="load" hx-swap="outerHTML"
      class="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 xl:grid-cols-4">
 
   <div class="p-5 bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
