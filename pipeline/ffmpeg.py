@@ -65,8 +65,10 @@ class TranscodeResult:
 def probe(path: str | Path) -> Probe:
     cmd = [
         settings.FFPROBE_BIN,
-        "-v", "error",
-        "-print_format", "json",
+        "-v",
+        "error",
+        "-print_format",
+        "json",
         "-show_format",
         "-show_streams",
         str(path),
@@ -104,7 +106,9 @@ def probe(path: str | Path) -> Probe:
     if bitrate:
         result.bitrate_kbps = bitrate // 1000
     elif result.duration_seconds and result.size_bytes:
-        result.bitrate_kbps = int(result.size_bytes * 8 / result.duration_seconds / 1000)
+        result.bitrate_kbps = int(
+            result.size_bytes * 8 / result.duration_seconds / 1000
+        )
     return result
 
 
@@ -135,7 +139,9 @@ def encoder_for(codec: str, hw_accel: str) -> str:
         raise TranscodeError(f"No encoder for {codec} with {hw_accel}") from exc
 
 
-def build_command(profile, source: Path, destination: Path, probe_data: Probe | None = None) -> list[str]:
+def build_command(
+    profile, source: Path, destination: Path, probe_data: Probe | None = None
+) -> list[str]:
     """Assemble the ffmpeg invocation for one file."""
     encoder = encoder_for(profile.video_codec, profile.hw_accel)
     cmd: list[str] = [settings.FFMPEG_BIN, "-hide_banner", "-nostdin", "-y"]
@@ -160,7 +166,12 @@ def build_command(profile, source: Path, destination: Path, probe_data: Probe | 
     elif encoder.endswith("_vaapi"):
         cmd += ["-rc_mode", "CQP", "-qp", str(profile.quality)]
 
-    if profile.max_height and probe_data and probe_data.height and probe_data.height > profile.max_height:
+    if (
+        profile.max_height
+        and probe_data
+        and probe_data.height
+        and probe_data.height > profile.max_height
+    ):
         scaler = "scale_vaapi" if profile.hw_accel == "vaapi" else "scale"
         cmd += ["-vf", f"{scaler}=-2:{profile.max_height}"]
 
@@ -234,7 +245,9 @@ def run(
     if cancelled:
         raise Cancelled("Cancelled by operator")
     if proc.returncode != 0:
-        raise TranscodeError("\n".join(log_tail[-10:]) or f"ffmpeg exited {proc.returncode}")
+        raise TranscodeError(
+            "\n".join(log_tail[-10:]) or f"ffmpeg exited {proc.returncode}"
+        )
     return TranscodeResult(returncode=proc.returncode, log_tail=log_tail)
 
 
@@ -268,13 +281,13 @@ def _parse_progress(fields: dict[str, str], duration_seconds: float | None) -> P
 def _as_int(value) -> int | None:
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
 def _as_float(value) -> float | None:
     try:
         result = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return result if result == result else None  # drop NaN

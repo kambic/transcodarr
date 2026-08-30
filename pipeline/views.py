@@ -63,7 +63,8 @@ def _dashboard_context() -> dict:
     )
     codec_total = sum(row["count"] for row in codec_rows) or 1
     codecs = [
-        {**row, "share": round(row["count"] / codec_total * 100, 1)} for row in codec_rows
+        {**row, "share": round(row["count"] / codec_total * 100, 1)}
+        for row in codec_rows
     ]
 
     return {
@@ -82,7 +83,9 @@ def _dashboard_context() -> dict:
         "avg_saving": (
             MediaFile.objects.filter(original_size_bytes__gt=F("size_bytes")).aggregate(
                 pct=Avg(
-                    (F("original_size_bytes") - F("size_bytes")) * 100.0 / F("original_size_bytes")
+                    (F("original_size_bytes") - F("size_bytes"))
+                    * 100.0
+                    / F("original_size_bytes")
                 )
             )["pct"]
         ),
@@ -123,7 +126,9 @@ def _queue_context() -> dict:
 
 def job_detail(request, pk: int):
     job = get_object_or_404(Job.objects.select_related("media_file", "worker"), pk=pk)
-    template = "pages/job_detail.html#job-body" if request.htmx else "pages/job_detail.html"
+    template = (
+        "pages/job_detail.html#job-body" if request.htmx else "pages/job_detail.html"
+    )
     return render(request, template, {"job": job})
 
 
@@ -160,7 +165,13 @@ def job_retry(request, pk: int):
 def job_bump(request, pk: int):
     """Push a job to the front of the queue."""
     job = get_object_or_404(Job, pk=pk)
-    top = Job.objects.active().order_by("-priority").values_list("priority", flat=True).first() or 0
+    top = (
+        Job.objects.active()
+        .order_by("-priority")
+        .values_list("priority", flat=True)
+        .first()
+        or 0
+    )
     Job.objects.filter(pk=job.pk).update(priority=min(top + 1, 100))
     return _queue_response(request, "Moved to the front of the queue.")
 
@@ -216,16 +227,27 @@ def library_form(request, pk: int | None = None):
             saved = form.save()
             if not pk:
                 scan_library.enqueue(saved.pk)
-            response = render(request, "pages/libraries.html#library-grid", {"libraries": _libraries()})
+            response = render(
+                request,
+                "pages/libraries.html#library-grid",
+                {"libraries": _libraries()},
+            )
             # Tells the base template to close the modal and raise a toast.
             response["HX-Trigger"] = (
                 '{"closeModal": true, "toast": {"message": "Library saved. Scanning now."}}'
             )
             return response
-        return render(request, "partials/library_form.html", {"form": form, "library": library}, status=422)
+        return render(
+            request,
+            "partials/library_form.html",
+            {"form": form, "library": library},
+            status=422,
+        )
 
     form = LibraryForm(instance=library)
-    return render(request, "partials/library_form.html", {"form": form, "library": library})
+    return render(
+        request, "partials/library_form.html", {"form": form, "library": library}
+    )
 
 
 @require_POST
@@ -236,7 +258,9 @@ def library_scan(request, pk: int):
         last_scan_started_at=timezone.now(), last_scan_finished_at=None
     )
     if request.htmx:
-        return render(request, "pages/libraries.html#library-grid", {"libraries": _libraries()})
+        return render(
+            request, "pages/libraries.html#library-grid", {"libraries": _libraries()}
+        )
     messages.success(request, f"Scanning {library.name}.")
     return redirect("pipeline:library_list")
 
@@ -259,7 +283,9 @@ def library_delete(request, pk: int):
     library = get_object_or_404(Library, pk=pk)
     library.delete()
     if request.htmx:
-        return render(request, "pages/libraries.html#library-grid", {"libraries": _libraries()})
+        return render(
+            request, "pages/libraries.html#library-grid", {"libraries": _libraries()}
+        )
     return redirect("pipeline:library_list")
 
 
@@ -279,7 +305,9 @@ def file_list(request):
 
 
 def _file_context(request) -> dict:
-    files = MediaFile.objects.select_related("library").exclude(status=FileStatus.MISSING)
+    files = MediaFile.objects.select_related("library").exclude(
+        status=FileStatus.MISSING
+    )
 
     query = request.GET.get("q", "").strip()
     verdict = request.GET.get("verdict", "")
@@ -296,7 +324,14 @@ def _file_context(request) -> dict:
         files = files.filter(video_codec=codec)
 
     sort = request.GET.get("sort", "rel_path")
-    allowed = {"rel_path", "-size_bytes", "size_bytes", "-updated_at", "video_codec", "-height"}
+    allowed = {
+        "rel_path",
+        "-size_bytes",
+        "size_bytes",
+        "-updated_at",
+        "video_codec",
+        "-height",
+    }
     files = files.order_by(sort if sort in allowed else "rel_path")
 
     params = request.GET.copy()
@@ -312,7 +347,13 @@ def _file_context(request) -> dict:
             .distinct()
             .order_by("video_codec")
         ),
-        "filters": {"q": query, "verdict": verdict, "library": library_id, "codec": codec, "sort": sort},
+        "filters": {
+            "q": query,
+            "verdict": verdict,
+            "library": library_id,
+            "codec": codec,
+            "sort": sort,
+        },
         "querystring": params.urlencode(),
         "result_count": files.count(),
     }
@@ -323,7 +364,9 @@ def file_detail(request, pk: int):
         MediaFile.objects.select_related("library__profile"), pk=pk
     )
     context = {"file": media_file, "jobs": media_file.jobs.order_by("-created_at")[:10]}
-    template = "pages/file_detail.html#file-body" if request.htmx else "pages/file_detail.html"
+    template = (
+        "pages/file_detail.html#file-body" if request.htmx else "pages/file_detail.html"
+    )
     return render(request, template, context)
 
 
@@ -356,7 +399,11 @@ def profile_list(request):
     return render(
         request,
         "pages/profiles.html",
-        {"profiles": TranscodeProfile.objects.annotate(library_count=Count("libraries"))},
+        {
+            "profiles": TranscodeProfile.objects.annotate(
+                library_count=Count("libraries")
+            )
+        },
     )
 
 
@@ -371,9 +418,16 @@ def profile_form(request, pk: int | None = None):
                 '{"closeModal": true, "reloadPage": true, "toast": {"message": "Profile saved."}}'
             )
             return response
-        return render(request, "partials/profile_form.html", {"form": form, "profile": profile}, status=422)
+        return render(
+            request,
+            "partials/profile_form.html",
+            {"form": form, "profile": profile},
+            status=422,
+        )
     return render(
-        request, "partials/profile_form.html", {"form": ProfileForm(instance=profile), "profile": profile}
+        request,
+        "partials/profile_form.html",
+        {"form": ProfileForm(instance=profile), "profile": profile},
     )
 
 
@@ -383,5 +437,7 @@ def worker_list(request):
             running=Count("jobs", filter=Q(jobs__state=JobState.RUNNING))
         )
     }
-    template = "pages/workers.html#worker-grid" if request.htmx else "pages/workers.html"
+    template = (
+        "pages/workers.html#worker-grid" if request.htmx else "pages/workers.html"
+    )
     return render(request, template, context)

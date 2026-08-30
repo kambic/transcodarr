@@ -57,7 +57,7 @@ def duration(seconds):
 def percent_of(value, total):
     try:
         return round(float(value) / float(total) * 100, 1)
-    except (TypeError, ValueError, ZeroDivisionError):
+    except TypeError, ValueError, ZeroDivisionError:
         return 0
 
 

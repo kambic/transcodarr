@@ -38,19 +38,24 @@ class RuleTests(TestCase):
         )
 
     def test_wrong_codec_needs_transcode(self):
-        decision = evaluate(MediaFile(video_codec="h264", container="matroska"), self.profile)
+        decision = evaluate(
+            MediaFile(video_codec="h264", container="matroska"), self.profile
+        )
         self.assertTrue(decision.needs_transcode)
         self.assertIn("h264", decision.reason)
 
     def test_matching_file_passes(self):
         decision = evaluate(
-            MediaFile(video_codec="hevc", container="matroska", height=1080), self.profile
+            MediaFile(video_codec="hevc", container="matroska", height=1080),
+            self.profile,
         )
         self.assertFalse(decision.needs_transcode)
 
     def test_container_aliases_are_accepted(self):
         """ffprobe reports MKV as "matroska" — that must not count as a mismatch."""
-        decision = evaluate(MediaFile(video_codec="hevc", container="matroska"), self.profile)
+        decision = evaluate(
+            MediaFile(video_codec="hevc", container="matroska"), self.profile
+        )
         self.assertFalse(decision.needs_transcode)
 
     def test_oversized_height_is_flagged(self):
@@ -77,8 +82,13 @@ class ProbeTaskTests(TestCase):
         from .tasks import probe_file
 
         fake = ffmpeg.Probe(
-            container="matroska", video_codec="h264", audio_codec="aac",
-            width=1920, height=1080, duration_seconds=60.0, size_bytes=100,
+            container="matroska",
+            video_codec="h264",
+            audio_codec="aac",
+            width=1920,
+            height=1080,
+            duration_seconds=60.0,
+            size_bytes=100,
         )
         with mock.patch("pipeline.ffmpeg.probe", return_value=fake):
             probe_file.enqueue(self.file.pk)
@@ -93,7 +103,9 @@ class ProbeTaskTests(TestCase):
         from . import ffmpeg
         from .tasks import probe_file
 
-        with mock.patch("pipeline.ffmpeg.probe", side_effect=ffmpeg.ProbeError("bad header")):
+        with mock.patch(
+            "pipeline.ffmpeg.probe", side_effect=ffmpeg.ProbeError("bad header")
+        ):
             probe_file.enqueue(self.file.pk)
 
         self.file.refresh_from_db()
@@ -107,8 +119,12 @@ class ViewTests(TestCase):
         profile = TranscodeProfile.objects.create(name="HEVC", video_codec="hevc")
         self.library = Library.objects.create(name="TV", path="/tmp", profile=profile)
         self.file = MediaFile.objects.create(
-            library=self.library, path="/tmp/a.mkv", rel_path="a.mkv",
-            video_codec="h264", verdict=Verdict.NEEDS_TRANSCODE, size_bytes=100,
+            library=self.library,
+            path="/tmp/a.mkv",
+            rel_path="a.mkv",
+            video_codec="h264",
+            verdict=Verdict.NEEDS_TRANSCODE,
+            size_bytes=100,
         )
 
     def test_htmx_request_returns_only_the_fragment(self):
@@ -125,8 +141,13 @@ class ViewTests(TestCase):
     def test_library_form_rejects_a_path_that_is_not_a_directory(self):
         response = self.client.post(
             "/libraries/new/",
-            {"name": "X", "path": "/definitely/not/here", "profile": self.library.profile_id,
-             "extensions": "mkv", "scan_interval_minutes": 60},
+            {
+                "name": "X",
+                "path": "/definitely/not/here",
+                "profile": self.library.profile_id,
+                "extensions": "mkv",
+                "scan_interval_minutes": 60,
+            },
             headers={"HX-Request": "true"},
         )
         self.assertEqual(response.status_code, 422)
@@ -143,8 +164,14 @@ class FlowEngineTests(TestCase):
         self.ctx = lambda **meta: engine.FlowContext(
             working_path="/media/Show.S01E01.mkv",
             relative_path="Show.S01E01.mkv",
-            metadata={"video_codec": "h264", "height": 1080, "bitrate_kbps": 9000,
-                      "size_bytes": 4_000_000_000, "container": "matroska", **meta},
+            metadata={
+                "video_codec": "h264",
+                "height": 1080,
+                "bitrate_kbps": 9000,
+                "size_bytes": 4_000_000_000,
+                "container": "matroska",
+                **meta,
+            },
         )
 
     def test_default_graph_is_valid_out_of_the_box(self):
@@ -173,10 +200,14 @@ class FlowEngineTests(TestCase):
 
     def test_a_loop_is_stopped_rather_than_hanging_a_worker(self):
         graph = {
-            "nodes": [{"id": "a", "type": "input_file", "x": 0, "y": 0, "config": {}},
-                      {"id": "b", "type": "log_message", "x": 0, "y": 0, "config": {}}],
-            "edges": [{"from": "a", "output": 1, "to": "b"},
-                      {"from": "b", "output": 1, "to": "a"}],
+            "nodes": [
+                {"id": "a", "type": "input_file", "x": 0, "y": 0, "config": {}},
+                {"id": "b", "type": "log_message", "x": 0, "y": 0, "config": {}},
+            ],
+            "edges": [
+                {"from": "a", "output": 1, "to": "b"},
+                {"from": "b", "output": 1, "to": "a"},
+            ],
         }
         result = self.engine.run(graph, self.ctx())
         self.assertTrue(result.failed)
@@ -188,9 +219,16 @@ class FlowEngineTests(TestCase):
 
     def test_fail_node_marks_the_flow_failed(self):
         graph = {
-            "nodes": [{"id": "a", "type": "input_file", "x": 0, "y": 0, "config": {}},
-                      {"id": "b", "type": "fail_flow", "x": 0, "y": 0,
-                       "config": {"reason": "Nope"}}],
+            "nodes": [
+                {"id": "a", "type": "input_file", "x": 0, "y": 0, "config": {}},
+                {
+                    "id": "b",
+                    "type": "fail_flow",
+                    "x": 0,
+                    "y": 0,
+                    "config": {"reason": "Nope"},
+                },
+            ],
             "edges": [{"from": "a", "output": 1, "to": "b"}],
         }
         result = self.engine.run(graph, self.ctx())
@@ -224,9 +262,23 @@ class FlowEditorTests(TestCase):
         self.assertEqual(self.flow.graph["edges"], [])
 
     def test_save_strips_config_keys_the_node_does_not_declare(self):
-        payload = {"graph": {"nodes": [{"id": "a", "type": "bitrate_above", "x": 0, "y": 0,
-                                        "config": {"kbps": 5000, "evil": "x"}}], "edges": []}}
-        self.client.post(f"/flows/{self.flow.pk}/save/", payload, content_type="application/json")
+        payload = {
+            "graph": {
+                "nodes": [
+                    {
+                        "id": "a",
+                        "type": "bitrate_above",
+                        "x": 0,
+                        "y": 0,
+                        "config": {"kbps": 5000, "evil": "x"},
+                    }
+                ],
+                "edges": [],
+            }
+        }
+        self.client.post(
+            f"/flows/{self.flow.pk}/save/", payload, content_type="application/json"
+        )
         self.flow.refresh_from_db()
         self.assertEqual(self.flow.graph["nodes"][0]["config"], {"kbps": 5000})
 
@@ -242,10 +294,17 @@ class FlowEditorTests(TestCase):
 
     def test_test_run_returns_the_path_a_real_file_took(self):
         profile = TranscodeProfile.objects.create(name="P", video_codec="hevc")
-        library = Library.objects.create(name="L", path="/tmp", profile=profile, flow=self.flow)
+        library = Library.objects.create(
+            name="L", path="/tmp", profile=profile, flow=self.flow
+        )
         media_file = MediaFile.objects.create(
-            library=library, path="/tmp/a.mkv", rel_path="a.mkv",
-            video_codec="h264", container="matroska", height=1080, size_bytes=100,
+            library=library,
+            path="/tmp/a.mkv",
+            rel_path="a.mkv",
+            video_codec="h264",
+            container="matroska",
+            height=1080,
+            size_bytes=100,
         )
         response = self.client.post(
             f"/flows/{self.flow.pk}/test/",
@@ -259,4 +318,4 @@ class FlowEditorTests(TestCase):
     def test_editor_page_ships_the_node_registry(self):
         response = self.client.get(f"/flows/{self.flow.pk}/")
         self.assertContains(response, "transcode_video")
-        self.assertContains(response, "id=\"node-types\"")
+        self.assertContains(response, 'id="node-types"')

@@ -58,7 +58,10 @@ class LibraryForm(FlowbiteFormMixin, forms.ModelForm):
         return path
 
     def clean_extensions(self) -> str:
-        raw = {e.strip().lower().lstrip(".") for e in self.cleaned_data["extensions"].split(",")}
+        raw = {
+            e.strip().lower().lstrip(".")
+            for e in self.cleaned_data["extensions"].split(",")
+        }
         cleaned = sorted(e for e in raw if e)
         if not cleaned:
             raise forms.ValidationError("List at least one file extension.")

@@ -34,7 +34,9 @@ class TranscodeProfile(models.Model):
 
     name = models.CharField(max_length=120, unique=True)
     video_codec = models.CharField(max_length=20, choices=Codec, default=Codec.HEVC)
-    container = models.CharField(max_length=10, choices=Container, default=Container.MKV)
+    container = models.CharField(
+        max_length=10, choices=Container, default=Container.MKV
+    )
     audio_codec = models.CharField(max_length=20, default="copy")
     quality = models.PositiveSmallIntegerField(
         default=24, help_text="CRF for CPU encoders, CQ/global_quality for hardware."
@@ -42,10 +44,14 @@ class TranscodeProfile(models.Model):
     preset = models.CharField(max_length=20, default="medium")
     hw_accel = models.CharField(max_length=10, choices=HWAccel, default=HWAccel.NONE)
     max_height = models.PositiveIntegerField(
-        null=True, blank=True, help_text="Downscale anything taller. Blank keeps the source height."
+        null=True,
+        blank=True,
+        help_text="Downscale anything taller. Blank keeps the source height.",
     )
     max_bitrate_kbps = models.PositiveIntegerField(
-        null=True, blank=True, help_text="Flag files above this bitrate even if the codec matches."
+        null=True,
+        blank=True,
+        help_text="Flag files above this bitrate even if the codec matches.",
     )
     extra_args = models.CharField(
         max_length=400, blank=True, help_text="Appended verbatim to the ffmpeg command."
@@ -103,13 +109,21 @@ class Library(models.Model):
     """A folder to watch, plus the profile its contents should match."""
 
     name = models.CharField(max_length=120)
-    path = models.CharField(max_length=500, help_text="Absolute path the worker can read.")
+    path = models.CharField(
+        max_length=500, help_text="Absolute path the worker can read."
+    )
     profile = models.ForeignKey(
-        TranscodeProfile, on_delete=models.PROTECT, related_name="libraries",
+        TranscodeProfile,
+        on_delete=models.PROTECT,
+        related_name="libraries",
         help_text="Used when no flow is set, and as the fallback for simple setups.",
     )
     flow = models.ForeignKey(
-        Flow, on_delete=models.SET_NULL, null=True, blank=True, related_name="libraries",
+        Flow,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="libraries",
         help_text="A flow takes precedence over the profile.",
     )
     extensions = models.CharField(
@@ -120,7 +134,8 @@ class Library(models.Model):
     enabled = models.BooleanField(default=True)
     scan_interval_minutes = models.PositiveIntegerField(default=720)
     auto_queue = models.BooleanField(
-        default=True, help_text="Queue a transcode as soon as a file fails the profile check."
+        default=True,
+        help_text="Queue a transcode as soon as a file fails the profile check.",
     )
     last_scan_started_at = models.DateTimeField(null=True, blank=True)
     last_scan_finished_at = models.DateTimeField(null=True, blank=True)
@@ -138,7 +153,11 @@ class Library(models.Model):
 
     @property
     def extension_set(self) -> set[str]:
-        return {e.strip().lower().lstrip(".") for e in self.extensions.split(",") if e.strip()}
+        return {
+            e.strip().lower().lstrip(".")
+            for e in self.extensions.split(",")
+            if e.strip()
+        }
 
     @property
     def is_scanning(self) -> bool:
@@ -182,12 +201,15 @@ class MediaFileQuerySet(models.QuerySet):
 
     def savings(self):
         """Bytes reclaimed by every file this pipeline has already rewritten."""
-        return self.filter(original_size_bytes__gt=0).aggregate(
-            saved=models.Sum(
-                models.F("original_size_bytes") - models.F("size_bytes"),
-                output_field=models.BigIntegerField(),
-            )
-        )["saved"] or 0
+        return (
+            self.filter(original_size_bytes__gt=0).aggregate(
+                saved=models.Sum(
+                    models.F("original_size_bytes") - models.F("size_bytes"),
+                    output_field=models.BigIntegerField(),
+                )
+            )["saved"]
+            or 0
+        )
 
 
 class MediaFile(models.Model):
@@ -237,7 +259,12 @@ class MediaFile(models.Model):
     def resolution_label(self) -> str:
         if not self.height:
             return "—"
-        for threshold, label in ((2000, "4K"), (1000, "1080p"), (700, "720p"), (400, "480p")):
+        for threshold, label in (
+            (2000, "4K"),
+            (1000, "1080p"),
+            (700, "720p"),
+            (400, "480p"),
+        ):
             if self.height >= threshold:
                 return label
         return f"{self.height}p"
@@ -256,7 +283,11 @@ class MediaFile(models.Model):
 
     @property
     def is_busy(self) -> bool:
-        return self.status in {FileStatus.PROBING, FileStatus.QUEUED, FileStatus.TRANSCODING}
+        return self.status in {
+            FileStatus.PROBING,
+            FileStatus.QUEUED,
+            FileStatus.TRANSCODING,
+        }
 
 
 class Worker(models.Model):
@@ -325,7 +356,9 @@ class Job(models.Model):
         Library, on_delete=models.CASCADE, related_name="jobs", null=True, blank=True
     )
     kind = models.CharField(max_length=20, choices=JobKind, default=JobKind.TRANSCODE)
-    state = models.CharField(max_length=20, choices=JobState, default=JobState.QUEUED, db_index=True)
+    state = models.CharField(
+        max_length=20, choices=JobState, default=JobState.QUEUED, db_index=True
+    )
     priority = models.SmallIntegerField(default=0)
 
     task_result_id = models.CharField(max_length=64, blank=True, db_index=True)
@@ -346,7 +379,9 @@ class Job(models.Model):
         Flow, on_delete=models.SET_NULL, null=True, blank=True, related_name="jobs"
     )
     trace = models.JSONField(
-        default=list, blank=True, help_text="Nodes visited, in order, with the output taken."
+        default=list,
+        blank=True,
+        help_text="Nodes visited, in order, with the output taken.",
     )
 
     command = models.TextField(blank=True)

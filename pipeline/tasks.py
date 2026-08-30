@@ -59,7 +59,9 @@ def scan_library(context, library_id: int) -> dict:
     root = Path(library.path)
     if not root.is_dir():
         _fail_job(job, f"{library.path} is not a readable directory")
-        Library.objects.filter(pk=library.pk).update(last_scan_finished_at=timezone.now())
+        Library.objects.filter(pk=library.pk).update(
+            last_scan_finished_at=timezone.now()
+        )
         return {"error": "path_unreadable"}
 
     wanted = library.extension_set
@@ -116,7 +118,9 @@ def scan_library(context, library_id: int) -> dict:
     stale = (
         MediaFile.objects.filter(library=library)
         .exclude(path__in=seen)
-        .exclude(status__in=[FileStatus.PROBING, FileStatus.QUEUED, FileStatus.TRANSCODING])
+        .exclude(
+            status__in=[FileStatus.PROBING, FileStatus.QUEUED, FileStatus.TRANSCODING]
+        )
     )
     for candidate in stale.iterator(chunk_size=200):
         if not Path(candidate.path).exists():
@@ -124,7 +128,12 @@ def scan_library(context, library_id: int) -> dict:
             removed += 1
 
     Library.objects.filter(pk=library.pk).update(last_scan_finished_at=timezone.now())
-    summary = {"added": added, "updated": updated, "missing": removed, "total": len(seen)}
+    summary = {
+        "added": added,
+        "updated": updated,
+        "missing": removed,
+        "total": len(seen),
+    }
     job.append_log(
         f"Scan finished: {len(seen)} files on disk, {added} new, "
         f"{updated} changed, {removed} missing"
@@ -150,7 +159,9 @@ def scan_due_libraries() -> int:
 @task(queue_name="probe", takes_context=True)
 def probe_file(context, media_file_id: int) -> str:
     """Read metadata with ffprobe, apply the library's rules, record a verdict."""
-    media_file = MediaFile.objects.select_related("library__profile").get(pk=media_file_id)
+    media_file = MediaFile.objects.select_related("library__profile").get(
+        pk=media_file_id
+    )
     job = _open_job(context, kind=JobKind.PROBE, media_file=media_file)
 
     MediaFile.objects.filter(pk=media_file.pk).update(status=FileStatus.PROBING)
@@ -190,7 +201,9 @@ def probe_file(context, media_file_id: int) -> str:
 
     if trace:
         job.trace, job.flow = trace, flow
-    job.append_log(f"{data.video_codec or '?'} · {media_file.resolution_label} · {reason}")
+    job.append_log(
+        f"{data.video_codec or '?'} · {media_file.resolution_label} · {reason}"
+    )
     _finish_job(job, JobState.SUCCEEDED, progress=100.0)
 
     if not needs_work:
@@ -246,7 +259,9 @@ def queue_transcode(media_file_id: int, priority: int = 0) -> Job:
         size_before=media_file.size_bytes,
     )
     MediaFile.objects.filter(pk=media_file.pk).update(status=FileStatus.QUEUED)
-    transaction.on_commit(lambda: run_transcode.using(priority=priority).enqueue(job.pk))
+    transaction.on_commit(
+        lambda: run_transcode.using(priority=priority).enqueue(job.pk)
+    )
     return job
 
 
@@ -343,7 +358,9 @@ def run_transcode(context, job_id: int) -> dict:
             verdict=Verdict.MEETS_TARGET,
             verdict_reason="Re-encode produced a larger file",
         )
-        _finish_job(job, JobState.SUCCEEDED, progress=100.0, size_after=media_file.size_bytes)
+        _finish_job(
+            job, JobState.SUCCEEDED, progress=100.0, size_after=media_file.size_bytes
+        )
         return {"kept_original": True, "ratio": round(ratio, 3)}
 
     final_path = source.with_suffix(f".{profile.container}")
@@ -365,10 +382,14 @@ def run_transcode(context, job_id: int) -> dict:
         last_error="",
     )
     if worker:
-        Worker.objects.filter(pk=worker.pk).update(jobs_completed=worker.jobs_completed + 1)
+        Worker.objects.filter(pk=worker.pk).update(
+            jobs_completed=worker.jobs_completed + 1
+        )
 
     saved = media_file.size_bytes - new_size
-    job.append_log(f"Done. {_human(media_file.size_bytes)} → {_human(new_size)} ({_human(saved)} saved)")
+    job.append_log(
+        f"Done. {_human(media_file.size_bytes)} → {_human(new_size)} ({_human(saved)} saved)"
+    )
     for line in result.log_tail[-5:]:
         job.append_log(line)
     _finish_job(job, JobState.SUCCEEDED, progress=100.0, size_after=new_size)
@@ -403,7 +424,11 @@ def _open_job(context, *, kind, media_file=None, library=None) -> Job:
     if library is not None:
         lookup["library"] = library
 
-    job = Job.objects.filter(state=JobState.QUEUED, **lookup).order_by("created_at").first()
+    job = (
+        Job.objects.filter(state=JobState.QUEUED, **lookup)
+        .order_by("created_at")
+        .first()
+    )
     if job is None:
         job = Job.objects.create(**lookup)
 
@@ -412,11 +437,15 @@ def _open_job(context, *, kind, media_file=None, library=None) -> Job:
     job.worker = _register_worker(context)
     job.attempt = context.attempt
     job.task_result_id = context.task_result.id
-    job.save(update_fields=["state", "started_at", "worker", "attempt", "task_result_id"])
+    job.save(
+        update_fields=["state", "started_at", "worker", "attempt", "task_result_id"]
+    )
     return job
 
 
-def _finish_job(job: Job, state, *, progress: float | None = None, size_after=None, log=None) -> None:
+def _finish_job(
+    job: Job, state, *, progress: float | None = None, size_after=None, log=None
+) -> None:
     """Close a job with a targeted UPDATE.
 
     Workers write progress, worker and command with `.update()` while the job

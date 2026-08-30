@@ -99,14 +99,12 @@ TASKS = {
 FFMPEG_BIN = os.environ.get("FFMPEG_BIN", "ffmpeg")
 FFPROBE_BIN = os.environ.get("FFPROBE_BIN", "ffprobe")
 # Where in-flight transcodes are written before replacing the source file.
-TRANSCODE_CACHE_DIR = Path('/tmp/transcodarr')
+TRANSCODE_CACHE_DIR = Path("/tmp/transcodarr")
 TRANSCODE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 # TRANSCODE_CACHE_DIR = Path(os.environ.get("TRANSCODE_CACHE_DIR", BASE_DIR / "cache"))
-# RefuseWorker to replace a source file if the new one is larger than this ratio.
 MAX_OUTPUT_SIZE_RATIO = float(os.environ.get("MAX_OUTPUT_SIZE_RATIO", "1.0"))
 # How often the worker writes progress back to the database, in seconds.
 PROGRESS_INTERVAL_SECONDS = 2.0
-# A worker is considered offline this many seconds after its last heartbeat.
 WORKER_OFFLINE_AFTER = 45
 
 LANGUAGE_CODE = "en-us"

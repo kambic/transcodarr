@@ -58,7 +58,11 @@ def container_matches(media_file, profile) -> str | None:
 
 
 def within_height(media_file, profile) -> str | None:
-    if profile.max_height and media_file.height and media_file.height > profile.max_height:
+    if (
+        profile.max_height
+        and media_file.height
+        and media_file.height > profile.max_height
+    ):
         return f"{media_file.height}p exceeds the {profile.max_height}p ceiling"
     return None
 

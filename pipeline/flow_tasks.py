@@ -22,7 +22,9 @@ from .models import FileStatus, Flow, Job, JobKind, JobState, MediaFile, Verdict
 logger = logging.getLogger(__name__)
 
 
-def build_context(media_file: MediaFile, *, dry_run: bool, run_id: int = 0) -> engine.FlowContext:
+def build_context(
+    media_file: MediaFile, *, dry_run: bool, run_id: int = 0
+) -> engine.FlowContext:
     return engine.FlowContext(
         working_path=media_file.path,
         relative_path=media_file.rel_path,

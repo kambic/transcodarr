@@ -62,7 +62,9 @@ def flow_editor(request, pk: int):
         .order_by("rel_path")[:50]
     )
     if not sample_files:
-        sample_files = MediaFile.objects.exclude(video_codec="").order_by("rel_path")[:50]
+        sample_files = MediaFile.objects.exclude(video_codec="").order_by("rel_path")[
+            :50
+        ]
 
     return render(
         request,
@@ -87,7 +89,9 @@ def flow_save(request, pk: int):
         return HttpResponseBadRequest("Could not read the graph.")
 
     graph = payload.get("graph") or {}
-    if not isinstance(graph.get("nodes"), list) or not isinstance(graph.get("edges"), list):
+    if not isinstance(graph.get("nodes"), list) or not isinstance(
+        graph.get("edges"), list
+    ):
         return HttpResponseBadRequest("The graph needs a nodes list and an edges list.")
 
     # Drop anything the registry doesn't recognise rather than storing junk that
@@ -97,14 +101,19 @@ def flow_save(request, pk: int):
         definition = registry.get(node.get("type", ""))
         if definition is None:
             continue
-        clean_nodes.append({
-            "id": str(node["id"]),
-            "type": node["type"],
-            "x": round(float(node.get("x", 0)), 1),
-            "y": round(float(node.get("y", 0)), 1),
-            "config": {k: v for k, v in (node.get("config") or {}).items()
-                       if k in {f.name for f in definition.fields}},
-        })
+        clean_nodes.append(
+            {
+                "id": str(node["id"]),
+                "type": node["type"],
+                "x": round(float(node.get("x", 0)), 1),
+                "y": round(float(node.get("y", 0)), 1),
+                "config": {
+                    k: v
+                    for k, v in (node.get("config") or {}).items()
+                    if k in {f.name for f in definition.fields}
+                },
+            }
+        )
     ids = {n["id"] for n in clean_nodes}
     clean_edges = [
         {"from": str(e["from"]), "output": int(e["output"]), "to": str(e["to"])}
@@ -122,11 +131,13 @@ def flow_save(request, pk: int):
         flow.enabled = bool(payload["enabled"])
     flow.save()
 
-    return JsonResponse({
-        "saved": True,
-        "revision": flow.revision,
-        "problems": engine.validate(flow.graph),
-    })
+    return JsonResponse(
+        {
+            "saved": True,
+            "revision": flow.revision,
+            "problems": engine.validate(flow.graph),
+        }
+    )
 
 
 @require_POST
@@ -142,7 +153,11 @@ def flow_test(request, pk: int):
     except json.JSONDecodeError:
         return HttpResponseBadRequest("Could not read the request.")
 
-    media_file = MediaFile.objects.filter(pk=payload.get("file_id")).select_related("library").first()
+    media_file = (
+        MediaFile.objects.filter(pk=payload.get("file_id"))
+        .select_related("library")
+        .first()
+    )
     if media_file is None:
         return JsonResponse({"error": "Pick a file to test with."}, status=400)
 
@@ -157,21 +172,23 @@ def flow_test(request, pk: int):
     except Exception as exc:
         return JsonResponse({"error": f"{type(exc).__name__}: {exc}"}, status=400)
 
-    return JsonResponse({
-        "file": media_file.rel_path,
-        "metadata": {
-            "codec": media_file.video_codec,
-            "resolution": media_file.resolution_label,
-            "bitrate": media_file.bitrate_kbps,
-            "size": media_file.size_bytes,
-        },
-        "trace": result.trace,
-        "messages": ctx.messages,
-        "planned": ctx.planned,
-        "needs_work": result.needs_work,
-        "failed": result.failed,
-        "reason": result.reason,
-    })
+    return JsonResponse(
+        {
+            "file": media_file.rel_path,
+            "metadata": {
+                "codec": media_file.video_codec,
+                "resolution": media_file.resolution_label,
+                "bitrate": media_file.bitrate_kbps,
+                "size": media_file.size_bytes,
+            },
+            "trace": result.trace,
+            "messages": ctx.messages,
+            "planned": ctx.planned,
+            "needs_work": result.needs_work,
+            "failed": result.failed,
+            "reason": result.reason,
+        }
+    )
 
 
 def flow_validate(request, pk: int):

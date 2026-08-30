@@ -61,12 +61,20 @@ class VideoCodecIs(Condition):
     icon = "video"
     description = "Yes when the video stream uses any of the listed codecs."
     fields = [
-        Field("codecs", "Codecs", "csv", "hevc", CODEC_CHOICES,
-              help="Comma separated. Yes if the file matches any of them."),
+        Field(
+            "codecs",
+            "Codecs",
+            "csv",
+            "hevc",
+            CODEC_CHOICES,
+            help="Comma separated. Yes if the file matches any of them.",
+        ),
     ]
 
     def test(self, ctx, config) -> bool:
-        return (ctx.metadata.get("video_codec") or "").lower() in self._list(config, "codecs")
+        return (ctx.metadata.get("video_codec") or "").lower() in self._list(
+            config, "codecs"
+        )
 
     def summary(self, config) -> str:
         return f"is {config.get('codecs') or '…'}"
@@ -78,10 +86,14 @@ class AudioCodecIs(Condition):
     label = "Audio codec is"
     icon = "audio"
     description = "Yes when the first audio stream uses any of the listed codecs."
-    fields = [Field("codecs", "Codecs", "csv", "aac", help="Comma separated, e.g. aac,eac3")]
+    fields = [
+        Field("codecs", "Codecs", "csv", "aac", help="Comma separated, e.g. aac,eac3")
+    ]
 
     def test(self, ctx, config) -> bool:
-        return (ctx.metadata.get("audio_codec") or "").lower() in self._list(config, "codecs")
+        return (ctx.metadata.get("audio_codec") or "").lower() in self._list(
+            config, "codecs"
+        )
 
     def summary(self, config) -> str:
         return f"is {config.get('codecs') or '…'}"
@@ -115,8 +127,15 @@ class ResolutionAtLeast(Condition):
     label = "Resolution at least"
     icon = "expand"
     description = "Yes when the video is at least this tall."
-    fields = [Field("height", "Minimum height", "number", 1080,
-                    help="720 for HD, 1080 for full HD, 2160 for 4K.")]
+    fields = [
+        Field(
+            "height",
+            "Minimum height",
+            "number",
+            1080,
+            help="720 for HD, 1080 for full HD, 2160 for 4K.",
+        )
+    ]
 
     def test(self, ctx, config) -> bool:
         return (ctx.metadata.get("height") or 0) >= self._int(config, "height", 1080)
@@ -149,7 +168,9 @@ class FileSizeAbove(Condition):
     fields = [Field("mb", "Size", "number", 2000, help="In MB.")]
 
     def test(self, ctx, config) -> bool:
-        return (ctx.metadata.get("size_bytes") or 0) > self._int(config, "mb", 2000) * 1_000_000
+        return (ctx.metadata.get("size_bytes") or 0) > self._int(
+            config, "mb", 2000
+        ) * 1_000_000
 
     def summary(self, config) -> str:
         return f"> {config.get('mb', '…')} MB"
@@ -164,7 +185,9 @@ class DurationLongerThan(Condition):
     fields = [Field("minutes", "Minutes", "number", 20)]
 
     def test(self, ctx, config) -> bool:
-        return (ctx.metadata.get("duration_seconds") or 0) > self._int(config, "minutes", 20) * 60
+        return (ctx.metadata.get("duration_seconds") or 0) > self._int(
+            config, "minutes", 20
+        ) * 60
 
     def summary(self, config) -> str:
         return f"> {config.get('minutes', '…')} min"
@@ -177,8 +200,14 @@ class FilenameMatches(Condition):
     icon = "search"
     description = "Yes when the file name matches this regular expression."
     fields = [
-        Field("pattern", "Pattern", "text", "", placeholder=r"S\d{2}E\d{2}",
-              help="Python regular expression, case insensitive."),
+        Field(
+            "pattern",
+            "Pattern",
+            "text",
+            "",
+            placeholder=r"S\d{2}E\d{2}",
+            help="Python regular expression, case insensitive.",
+        ),
     ]
 
     def test(self, ctx, config) -> bool:
@@ -205,19 +234,41 @@ class TranscodeVideo(Node):
     category = "action"
     icon = "bolt"
     mutating = True
-    description = "Re-encode the video stream. Audio and subtitles are copied unless changed."
+    description = (
+        "Re-encode the video stream. Audio and subtitles are copied unless changed."
+    )
     outputs = [Output("Transcoded"), Output("Kept original", "no")]
     fields = [
         Field("video_codec", "Video codec", "select", "hevc", CODEC_CHOICES[:3]),
         Field("container", "Container", "select", "mkv", CONTAINER_CHOICES),
         Field("hw_accel", "Encoder", "select", "none", HWACCEL_CHOICES),
-        Field("quality", "Quality", "number", 24,
-              help="CRF for CPU encoders, CQ or QP for hardware. Lower is better."),
-        Field("preset", "Preset", "text", "medium", help="ffmpeg preset, e.g. slow or p5."),
-        Field("max_height", "Downscale to", "number", 0, help="0 keeps the source height."),
-        Field("audio_codec", "Audio", "text", "copy", help="copy, or an encoder such as aac."),
-        Field("extra_args", "Extra ffmpeg arguments", "text", "",
-              placeholder="-x265-params log-level=error"),
+        Field(
+            "quality",
+            "Quality",
+            "number",
+            24,
+            help="CRF for CPU encoders, CQ or QP for hardware. Lower is better.",
+        ),
+        Field(
+            "preset", "Preset", "text", "medium", help="ffmpeg preset, e.g. slow or p5."
+        ),
+        Field(
+            "max_height", "Downscale to", "number", 0, help="0 keeps the source height."
+        ),
+        Field(
+            "audio_codec",
+            "Audio",
+            "text",
+            "copy",
+            help="copy, or an encoder such as aac.",
+        ),
+        Field(
+            "extra_args",
+            "Extra ffmpeg arguments",
+            "text",
+            "",
+            placeholder="-x265-params log-level=error",
+        ),
     ]
 
     def summary(self, config) -> str:
@@ -262,7 +313,9 @@ class TranscodeVideo(Node):
         if final != source:
             source.unlink(missing_ok=True)
         ctx.replace_working_file(final, before=before, after=after)
-        ctx.log(f"Transcoded to {target.video_codec}: {_human(before)} → {_human(after)}")
+        ctx.log(
+            f"Transcoded to {target.video_codec}: {_human(before)} → {_human(after)}"
+        )
         return 1
 
 
@@ -289,16 +342,34 @@ class RemuxContainer(Node):
             ctx.plan(f"Remux to {container}")
             return 1
 
-        destination = Path(settings.TRANSCODE_CACHE_DIR) / f"flow{ctx.run_id}-{source.stem[:70]}.{container}"
+        destination = (
+            Path(settings.TRANSCODE_CACHE_DIR)
+            / f"flow{ctx.run_id}-{source.stem[:70]}.{container}"
+        )
         destination.parent.mkdir(parents=True, exist_ok=True)
         command = [
-            settings.FFMPEG_BIN, "-hide_banner", "-nostdin", "-y",
-            "-i", str(source), "-map", "0", "-c", "copy",
-            "-progress", "pipe:1", "-nostats", str(destination),
+            settings.FFMPEG_BIN,
+            "-hide_banner",
+            "-nostdin",
+            "-y",
+            "-i",
+            str(source),
+            "-map",
+            "0",
+            "-c",
+            "copy",
+            "-progress",
+            "pipe:1",
+            "-nostats",
+            str(destination),
         ]
         ctx.record_command(command)
-        ffmpeg.run(command, duration_seconds=ctx.metadata.get("duration_seconds"),
-                   on_progress=ctx.on_progress, should_cancel=ctx.should_cancel)
+        ffmpeg.run(
+            command,
+            duration_seconds=ctx.metadata.get("duration_seconds"),
+            on_progress=ctx.on_progress,
+            should_cancel=ctx.should_cancel,
+        )
 
         before = source.stat().st_size
         final = source.with_suffix(f".{container}")
@@ -318,9 +389,19 @@ class MoveFile(Node):
     mutating = True
     description = "Move the file to another folder, creating it if needed."
     fields = [
-        Field("destination", "Destination folder", "text", "", placeholder="/media/archive"),
-        Field("keep_structure", "Keep the folder structure below the library root",
-              "checkbox", True),
+        Field(
+            "destination",
+            "Destination folder",
+            "text",
+            "",
+            placeholder="/media/archive",
+        ),
+        Field(
+            "keep_structure",
+            "Keep the folder structure below the library root",
+            "checkbox",
+            True,
+        ),
     ]
 
     def summary(self, config) -> str:
@@ -356,7 +437,9 @@ class LogMessage(Node):
     category = "action"
     icon = "note"
     description = "Add a line to the job log. Handy while building a flow."
-    fields = [Field("message", "Message", "text", "", placeholder="Reached the 4K branch")]
+    fields = [
+        Field("message", "Message", "text", "", placeholder="Reached the 4K branch")
+    ]
 
     def summary(self, config) -> str:
         return config.get("message") or "…"
@@ -372,8 +455,13 @@ class SetVariable(Node):
     label = "Set a variable"
     category = "action"
     icon = "tag"
-    description = "Store a value for later nodes to read. Available as {name} in messages."
-    fields = [Field("name", "Name", "text", "reason"), Field("value", "Value", "text", "")]
+    description = (
+        "Store a value for later nodes to read. Available as {name} in messages."
+    )
+    fields = [
+        Field("name", "Name", "text", "reason"),
+        Field("value", "Value", "text", ""),
+    ]
 
     def summary(self, config) -> str:
         return f"{config.get('name', '…')} = {config.get('value', '…')}"
@@ -396,8 +484,15 @@ class CompleteFlow(Node):
     icon = "check"
     description = "End the flow here. The file is left as it is and counts as healthy."
     outputs = []
-    fields = [Field("reason", "Reason", "text", "Meets target",
-                    help="Shown on the file as its verdict.")]
+    fields = [
+        Field(
+            "reason",
+            "Reason",
+            "text",
+            "Meets target",
+            help="Shown on the file as its verdict.",
+        )
+    ]
 
     def summary(self, config) -> str:
         return config.get("reason") or ""

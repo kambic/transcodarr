@@ -77,11 +77,11 @@ class FlowContext:
         max_height = config.get("max_height") or 0
         try:
             max_height = int(max_height)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             max_height = 0
         try:
             quality = int(config.get("quality") or 24)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             quality = 24
         return EncodeSettings(
             video_codec=config.get("video_codec") or "hevc",
@@ -166,7 +166,9 @@ def validate(graph: dict) -> list[str]:
         wired = {e["output"] for e in edges if e["from"] == node["id"]}
         for index, output in enumerate(definition.outputs, start=1):
             if index not in wired:
-                problems.append(f"{definition.label}: the “{output.label}” output goes nowhere.")
+                problems.append(
+                    f"{definition.label}: the “{output.label}” output goes nowhere."
+                )
 
     for edge in edges:
         if edge.get("from") not in known or edge.get("to") not in known:
@@ -176,14 +178,18 @@ def validate(graph: dict) -> list[str]:
     for node in nodes:
         if node["id"] not in reachable:
             definition = registry.get(node.get("type", ""))
-            problems.append(f"{definition.label if definition else node['type']} is not connected.")
+            problems.append(
+                f"{definition.label if definition else node['type']} is not connected."
+            )
 
     return problems
 
 
 def _reachable(graph: dict) -> set[str]:
     edges = graph.get("edges") or []
-    start = next((n["id"] for n in graph.get("nodes", []) if n.get("type") == "input_file"), None)
+    start = next(
+        (n["id"] for n in graph.get("nodes", []) if n.get("type") == "input_file"), None
+    )
     if start is None:
         return set()
     seen, stack = {start}, [start]
@@ -200,7 +206,9 @@ def run(graph: dict, ctx: FlowContext) -> FlowResult:
     nodes = {n["id"]: n for n in graph.get("nodes") or []}
     routes = {(e["from"], e["output"]): e["to"] for e in graph.get("edges") or []}
 
-    current_id = next((n["id"] for n in nodes.values() if n.get("type") == "input_file"), None)
+    current_id = next(
+        (n["id"] for n in nodes.values() if n.get("type") == "input_file"), None
+    )
     if current_id is None:
         raise FlowError("This flow has no input node.")
 
@@ -273,18 +281,50 @@ def default_graph() -> dict:
     return {
         "nodes": [
             {"id": "n1", "type": "input_file", "x": 400, "y": 40, "config": {}},
-            {"id": "n2", "type": "video_codec_is", "x": 400, "y": 180,
-             "config": {"codecs": "hevc"}},
-            {"id": "n3", "type": "complete_flow", "x": 120, "y": 380,
-             "config": {"reason": "Already HEVC"}},
-            {"id": "n4", "type": "transcode_video", "x": 560, "y": 360,
-             "config": {"video_codec": "hevc", "container": "mkv", "quality": 24,
-                        "preset": "medium", "audio_codec": "copy", "hw_accel": "none",
-                        "max_height": 0, "extra_args": ""}},
-            {"id": "n5", "type": "complete_flow", "x": 440, "y": 620,
-             "config": {"reason": "Transcoded to HEVC"}},
-            {"id": "n6", "type": "complete_flow", "x": 740, "y": 620,
-             "config": {"reason": "Re-encode came out larger, kept the original"}},
+            {
+                "id": "n2",
+                "type": "video_codec_is",
+                "x": 400,
+                "y": 180,
+                "config": {"codecs": "hevc"},
+            },
+            {
+                "id": "n3",
+                "type": "complete_flow",
+                "x": 120,
+                "y": 380,
+                "config": {"reason": "Already HEVC"},
+            },
+            {
+                "id": "n4",
+                "type": "transcode_video",
+                "x": 560,
+                "y": 360,
+                "config": {
+                    "video_codec": "hevc",
+                    "container": "mkv",
+                    "quality": 24,
+                    "preset": "medium",
+                    "audio_codec": "copy",
+                    "hw_accel": "none",
+                    "max_height": 0,
+                    "extra_args": "",
+                },
+            },
+            {
+                "id": "n5",
+                "type": "complete_flow",
+                "x": 440,
+                "y": 620,
+                "config": {"reason": "Transcoded to HEVC"},
+            },
+            {
+                "id": "n6",
+                "type": "complete_flow",
+                "x": 740,
+                "y": 620,
+                "config": {"reason": "Re-encode came out larger, kept the original"},
+            },
         ],
         "edges": [
             {"from": "n1", "output": 1, "to": "n2"},

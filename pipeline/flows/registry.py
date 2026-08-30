@@ -78,7 +78,7 @@ class Node:
     def _int(config: dict, key: str, default: int = 0) -> int:
         try:
             return int(config.get(key) or default)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return default
 
     @staticmethod
@@ -132,7 +132,9 @@ class Registry:
 
     def all(self) -> list[Node]:
         order = {"input": 0, "logic": 1, "action": 2, "flow": 3}
-        return sorted(self._nodes.values(), key=lambda n: (order.get(n.category, 9), n.label))
+        return sorted(
+            self._nodes.values(), key=lambda n: (order.get(n.category, 9), n.label)
+        )
 
     def to_json(self) -> list[dict]:
         return [node.to_json() for node in self.all()]

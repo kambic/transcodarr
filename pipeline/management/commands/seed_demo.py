@@ -67,7 +67,12 @@ class Command(BaseCommand):
         )
         TranscodeProfile.objects.get_or_create(
             name="AV1 archive",
-            defaults={"video_codec": "av1", "container": Container.MKV, "quality": 32, "preset": "6"},
+            defaults={
+                "video_codec": "av1",
+                "container": Container.MKV,
+                "quality": 32,
+                "preset": "6",
+            },
         )
 
         flow, _ = Flow.objects.get_or_create(
@@ -116,9 +121,13 @@ class Command(BaseCommand):
                     "duration_seconds": random.randint(1200, 3600),
                     "bitrate_kbps": random.randint(1500, 18000),
                     "status": FileStatus.QUEUED if needs else FileStatus.READY,
-                    "verdict": Verdict.NEEDS_TRANSCODE if needs else Verdict.MEETS_TARGET,
+                    "verdict": Verdict.NEEDS_TRANSCODE
+                    if needs
+                    else Verdict.MEETS_TARGET,
                     "verdict_reason": (
-                        f"Video is {codec}, target is hevc" if needs else "Already hevc in mkv"
+                        f"Video is {codec}, target is hevc"
+                        if needs
+                        else "Already hevc in mkv"
                     ),
                     "last_probed_at": timezone.now(),
                 },
@@ -127,12 +136,14 @@ class Command(BaseCommand):
 
         # A few finished jobs so the dashboard has history and savings to show.
         worker, _ = Worker.objects.get_or_create(
-            name="demo-worker", defaults={"hostname": "localhost", "last_heartbeat": timezone.now()}
+            name="demo-worker",
+            defaults={"hostname": "localhost", "last_heartbeat": timezone.now()},
         )
         for media_file in MediaFile.objects.filter(verdict=Verdict.MEETS_TARGET)[:12]:
             after = int(media_file.size_bytes * random.uniform(0.42, 0.72))
             MediaFile.objects.filter(pk=media_file.pk).update(
-                size_bytes=after, original_size_bytes=media_file.size_bytes,
+                size_bytes=after,
+                original_size_bytes=media_file.size_bytes,
                 status=FileStatus.TRANSCODED,
             )
             Job.objects.get_or_create(
