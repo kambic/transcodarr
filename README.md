@@ -17,6 +17,8 @@ htmx fragments, and **Flowbite** for the interface.
 
 ## Quick start
 
+Download samples from [media.xiph.org](https://mirror.accum.se/mirror/media.xiph.org/video/derf/).
+Mirror [extra mirror](https://mirror.accum.se/mirror/)
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt

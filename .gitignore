@@ -7,3 +7,6 @@ staticfiles/
 .env
 .venv/
 /db.sqlite32
+/out/
+/data/
+/lib/

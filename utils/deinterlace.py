@@ -104,9 +104,9 @@ class InterlacedTranscoder:
         return float(format_info.get("duration", 0.0))
 
     async def _run_with_progress(
-        self,
-        output_stream: Any,
-        progress_callback: Optional[Callable[[float], None]] = None,
+            self,
+            output_stream: Any,
+            progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
         """Executes FFmpeg asynchronously while parsing progress via a UNIX domain socket."""
         total_duration = self.get_duration()
@@ -119,13 +119,15 @@ class InterlacedTranscoder:
             server.listen(1)
             server.setblocking(False)
 
-            # Pass progress socket URL to FFmpeg stream
-            output_stream = ffmpeg.global_args(
-                output_stream, "-progress", f"unix://{sock_path}"
+            # 1. Attach global arguments directly to the OutputStream node
+            output_stream = output_stream.global_args(
+                "-progress", f"unix://{sock_path}"
             )
+
+            # 2. Compile stream to arguments
             args = ffmpeg.compile(output_stream.overwrite_output())
 
-            # Spawn ffmpeg process
+            # 3. Spawn subprocess
             proc = await asyncio.create_subprocess_exec(
                 args[0],
                 *args[1:],
@@ -133,7 +135,6 @@ class InterlacedTranscoder:
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            # Accept connection from FFmpeg progress socket
             loop = asyncio.get_running_loop()
             conn, _ = await loop.sock_accept(server)
             conn.setblocking(False)
@@ -147,7 +148,7 @@ class InterlacedTranscoder:
                     buffer += data.decode("utf-8")
 
                     lines = buffer.split("\n")
-                    buffer = lines.pop()  # Preserve incomplete tail line
+                    buffer = lines.pop()
 
                     for line in lines:
                         if "out_time_ms=" in line:
@@ -169,10 +170,17 @@ class InterlacedTranscoder:
             if proc.returncode != 0:
                 _, stderr = await proc.communicate()
                 raise RuntimeError(
-                    f"FFmpeg execution failed with code {proc.returncode}:\n{stderr.decode('utf-8')}"
+                    f"FFmpeg process returned non-zero exit code {proc.returncode}:\n{stderr.decode('utf-8')}"
                 )
 
     # --- Encoding Pipelines ---
+    def _has_audio(self) -> bool:
+        """Checks if the input file contains an audio stream."""
+        try:
+            meta = self.probe()
+            return any(s.get("codec_type") == "audio" for s in meta.get("streams", []))
+        except Exception:
+            return False
 
     async def transcode_progressive(
         self,
@@ -183,14 +191,24 @@ class InterlacedTranscoder:
     ) -> None:
         """Encodes progressive output stream using software encoders."""
         stream = ffmpeg.input(str(self.input_path))
-        out = ffmpeg.output(
-            stream.video,
-            stream.audio,
-            str(output_path),
-            vcodec=vcodec,
-            acodec="copy",
-            crf=crf,
-            pix_fmt="yuv420p",
+
+        # 1. Collect present streams dynamically
+        streams = [stream.video]
+        if self._has_audio():
+            streams.append(stream.audio)
+
+        # 2. Unpack streams into output node
+        out = (
+            ffmpeg.output(
+                *streams,
+                str(output_path),
+                vcodec=vcodec,
+                acodec="copy" if self._has_audio() else None,
+                qp=crf,
+                vf="format=nv12,hwupload",
+            )
+            .global_args("-vaapi_device", self.vaapi_device)
+            .global_args("-filter_hw_device", self.vaapi_device)
         )
         await self._run_with_progress(out, progress_callback)
 
@@ -264,9 +282,9 @@ class InterlacedTranscoder:
 
 # --- Example Execution Pipeline ---
 async def main():
-    input_file = "crew_1080i.y4m"
+    input_file = "/home/kamba/code/projects/transcodarr/lib/blender/crew_4cif.y4m"
     progressive_out = "crew_progressive.mp4"
-    vaapi_out = "crew_vaapi.mp4"
+    vaapi_out = "/home/kamba/code/projects/transcodarr/lib/output/crew_vaapi.mp4"
 
     def print_progress(percent: float):
         print(f"\rEncoding Progress: {percent:.2f}%", end="", flush=True)
@@ -276,7 +294,7 @@ async def main():
     # 1. Progressive Encoding with Async Progress Bar
     print("=== Starting Async Progressive Transcode ===")
     await transcoder.transcode_progressive(
-        progressive_out, crf=22, progress_callback=print_progress
+        vaapi_out, crf=22, progress_callback=print_progress
     )
     print("\nEncoding complete.\n")
 
