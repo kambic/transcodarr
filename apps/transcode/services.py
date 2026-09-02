@@ -59,7 +59,11 @@ def output_folder(node: Node) -> Node:
     if parent and not from_locked_share and not parent_locked:
         return parent
 
-    drive = Node.objects.filter(parent__isnull=True, kind=Node.Kind.FOLDER).order_by("created_at").first()
+    drive = (
+        Node.objects.filter(parent__isnull=True, kind=Node.Kind.FOLDER)
+        .order_by("created_at")
+        .first()
+    )
     if drive is None:
         drive = Node.objects.create(name="My Drive", kind=Node.Kind.FOLDER)
     folder, _ = Node.objects.get_or_create(
@@ -121,8 +125,13 @@ def retry(job: TranscodeJob) -> TranscodeJob:
     if job.is_active:
         return job
     TranscodeJob.objects.filter(pk=job.pk).update(
-        status=TranscodeJob.Status.QUEUED, progress=0, error="", log="",
-        cancel_requested=False, started_at=None, finished_at=None,
+        status=TranscodeJob.Status.QUEUED,
+        progress=0,
+        error="",
+        log="",
+        cancel_requested=False,
+        started_at=None,
+        finished_at=None,
     )
     job.refresh_from_db()
     return job
@@ -167,7 +176,9 @@ def claim(job_id: str) -> TranscodeJob | None:
     ).update(status=TranscodeJob.Status.RUNNING, started_at=timezone.now(), progress=0)
     if not claimed:
         return None
-    job = TranscodeJob.objects.select_related("source", "preset", "destination").get(pk=job_id)
+    job = TranscodeJob.objects.select_related("source", "preset", "destination").get(
+        pk=job_id
+    )
     TranscodeJob.objects.filter(pk=job.pk).update(attempts=job.attempts + 1)
     return job
 
@@ -181,7 +192,9 @@ def run(job: TranscodeJob) -> TranscodeJob:
     try:
         src = source_path(job.source)
         if not os.path.exists(src):
-            raise TranscodeError(f"{job.source.name} is not readable — is the share mounted?")
+            raise TranscodeError(
+                f"{job.source.name} is not readable — is the share mounted?"
+            )
 
         probe = probe_node(job.source)
         if probe.error:
@@ -200,7 +213,9 @@ def run(job: TranscodeJob) -> TranscodeJob:
             TranscodeJob.objects.filter(pk=job.pk).update(progress=percent)
 
         def should_cancel() -> bool:
-            return TranscodeJob.objects.filter(pk=job.pk, cancel_requested=True).exists()
+            return TranscodeJob.objects.filter(
+                pk=job.pk, cancel_requested=True
+            ).exists()
 
         try:
             result = ffmpeg.run(
@@ -228,7 +243,9 @@ def run(job: TranscodeJob) -> TranscodeJob:
         return job
     except Exception as exc:  # noqa: BLE001 — recorded on the job, not swallowed
         job.refresh_from_db()
-        job.mark(TranscodeJob.Status.FAILED, error=f"{type(exc).__name__}: {exc}"[:2000])
+        job.mark(
+            TranscodeJob.Status.FAILED, error=f"{type(exc).__name__}: {exc}"[:2000]
+        )
         return job
 
     job.refresh_from_db()
@@ -281,7 +298,10 @@ def file_output(job: TranscodeJob, temp_path: str, filename: str) -> Node:
             },
         )
         OperationItem.objects.create(
-            operation=operation, node=node, label=node.name, size=node.size,
+            operation=operation,
+            node=node,
+            label=node.name,
+            size=node.size,
             before={"source": job.source.name, "preset": job.preset.label},
             after=node.snapshot(),
         )
@@ -294,7 +314,9 @@ def file_output(job: TranscodeJob, temp_path: str, filename: str) -> Node:
 def sweep_stuck(minutes: int = 180) -> int:
     """Fail jobs left RUNNING by a worker that died."""
     cutoff = timezone.now() - timezone.timedelta(minutes=minutes)
-    stuck = TranscodeJob.objects.filter(status=TranscodeJob.Status.RUNNING, started_at__lt=cutoff)
+    stuck = TranscodeJob.objects.filter(
+        status=TranscodeJob.Status.RUNNING, started_at__lt=cutoff
+    )
     return stuck.update(
         status=TranscodeJob.Status.FAILED,
         error="No progress reported; the worker probably died. Retry when ready.",

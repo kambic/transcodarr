@@ -56,8 +56,7 @@ def _dashboard_context() -> dict:
         total_size=Sum("size_bytes"),
     )
     codec_rows = (
-        files
-        .values("video_codec")
+        files.values("video_codec")
         .annotate(count=Count("id"), size=Sum("size_bytes"))
         .order_by("-count")[:6]
     )

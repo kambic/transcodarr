@@ -100,7 +100,9 @@ class Scanner:
 
         self.operation.finish()
         self.run.operation = self.operation
-        ScanRoot.objects.filter(pk=self.scan_root.pk).update(last_scanned_at=timezone.now())
+        ScanRoot.objects.filter(pk=self.scan_root.pk).update(
+            last_scanned_at=timezone.now()
+        )
         return self.finish(status, message)
 
     # -- bookkeeping -------------------------------------------------------- #
@@ -112,8 +114,14 @@ class Scanner:
         self.run.problems = self.problems[:MAX_RECORDED_PROBLEMS]
         self.run.save(
             update_fields=[
-                "scanned", "created", "updated", "vanished", "skipped",
-                "errors", "bytes_seen", "problems",
+                "scanned",
+                "created",
+                "updated",
+                "vanished",
+                "skipped",
+                "errors",
+                "bytes_seen",
+                "problems",
             ]
         )
 
@@ -133,20 +141,35 @@ class Scanner:
     # -- reading ------------------------------------------------------------ #
     def load_index(self) -> None:
         rows = Node.objects.filter(scan_root=self.scan_root).values_list(
-            "pk", "parent_id", "name", "kind", "size",
-            "fs_modified_at", "missing_since", "trashed_at", "rel_path",
+            "pk",
+            "parent_id",
+            "name",
+            "kind",
+            "size",
+            "fs_modified_at",
+            "missing_since",
+            "trashed_at",
+            "rel_path",
         )
         for pk, parent_id, name, kind, size, fs_mtime, missing, trashed, rel in rows:
             self.index[rel.lower()] = Existing(
-                str(pk), str(parent_id) if parent_id else None, name, kind, size,
-                fs_mtime, missing, trashed,
+                str(pk),
+                str(parent_id) if parent_id else None,
+                name,
+                kind,
+                size,
+                fs_mtime,
+                missing,
+                trashed,
             )
             if kind == Node.Kind.FOLDER:
                 self.folders[rel.lower()] = str(pk)
         self.folders[""] = str(self.scan_root.node_id)
 
     def excluded(self, name: str) -> bool:
-        return any(fnmatch.fnmatch(name, pattern) for pattern in self.scan_root.patterns)
+        return any(
+            fnmatch.fnmatch(name, pattern) for pattern in self.scan_root.patterns
+        )
 
     def walk(self):
         """Depth-first walk yielding parents before their children."""
@@ -190,7 +213,9 @@ class Scanner:
                 if not is_dir:
                     self.run.bytes_seen += stat.st_size
 
-                yield Entry(rel_path, dirent.name, rel_dir, is_dir, stat.st_size, stat.st_mtime)
+                yield Entry(
+                    rel_path, dirent.name, rel_dir, is_dir, stat.st_size, stat.st_mtime
+                )
 
                 if is_dir and (not max_depth or depth + 1 < max_depth):
                     stack.append((rel_path, dirent.path, depth + 1))
@@ -239,8 +264,14 @@ class Scanner:
         node.save()
 
         self.index[key] = Existing(
-            str(node.pk), parent_id, node.name, node.kind, node.size,
-            node.fs_modified_at, None, None,
+            str(node.pk),
+            parent_id,
+            node.name,
+            node.kind,
+            node.size,
+            node.fs_modified_at,
+            None,
+            None,
         )
         if entry.is_dir:
             self.folders[key] = str(node.pk)
@@ -341,8 +372,12 @@ class Scanner:
     def log(self, node: Node, before: dict) -> None:
         if self.operation:
             OperationItem.objects.create(
-                operation=self.operation, node=node, label=node.name,
-                size=node.size, before=before, after=node.snapshot(),
+                operation=self.operation,
+                node=node,
+                label=node.name,
+                size=node.size,
+                before=before,
+                after=node.snapshot(),
             )
 
 
@@ -350,6 +385,8 @@ def as_datetime(mtime: float) -> datetime:
     return datetime.fromtimestamp(mtime, tz=dt_timezone.utc)
 
 
-def scan(scan_root: ScanRoot, *, full: bool = False, run: ScanRun | None = None) -> ScanRun:
+def scan(
+    scan_root: ScanRoot, *, full: bool = False, run: ScanRun | None = None
+) -> ScanRun:
     run = run or ScanRun.objects.create(scan_root=scan_root)
     return Scanner(scan_root=scan_root, run=run, full=full).execute()

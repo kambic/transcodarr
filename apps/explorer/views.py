@@ -22,7 +22,12 @@ from .services import OperationError
 from .tasks import scan_share
 
 SPECIALS = {"starred": "Starred", "recent": "Recent", "trash": "Trash"}
-SORTS = {"name": Lower("name"), "size": "size", "modified": "modified_at", "type": "content_type"}
+SORTS = {
+    "name": Lower("name"),
+    "size": "size",
+    "modified": "modified_at",
+    "type": "content_type",
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -33,13 +38,19 @@ def is_htmx(request) -> bool:
 
 
 def root_folder() -> Node:
-    root = Node.objects.filter(parent__isnull=True, kind=Node.Kind.FOLDER).order_by("created_at").first()
+    root = (
+        Node.objects.filter(parent__isnull=True, kind=Node.Kind.FOLDER)
+        .order_by("created_at")
+        .first()
+    )
     if root is None:
         root = Node.objects.create(name="My Drive", kind=Node.Kind.FOLDER)
     return root
 
 
-def remember(request, *, folder: Node | None = None, special: str | None = None, query: str = ""):
+def remember(
+    request, *, folder: Node | None = None, special: str | None = None, query: str = ""
+):
     request.session["cwd"] = str(folder.pk) if folder else None
     request.session["special"] = special
     request.session["query"] = query
@@ -57,7 +68,11 @@ def listing(folder: Node, special: str | None, query: str, sort: str, direction:
         qs = Node.objects.alive().filter(starred=True)
     elif special == "recent":
         qs = Node.objects.alive().files().order_by("-modified_at")[:25]
-        return qs if not query else Node.objects.alive().files().filter(name__icontains=query)
+        return (
+            qs
+            if not query
+            else Node.objects.alive().files().filter(name__icontains=query)
+        )
     elif special == "trash":
         qs = Node.objects.trashed().exclude(parent__trashed_at__isnull=False)
     elif query:
@@ -71,7 +86,9 @@ def listing(folder: Node, special: str | None, query: str, sort: str, direction:
     return qs.order_by("-kind", field)
 
 
-def context(request, *, folder: Node, special: str | None, query: str, toast=None) -> dict:
+def context(
+    request, *, folder: Node, special: str | None, query: str, toast=None
+) -> dict:
     sort = request.session.get("sort", "name")
     direction = request.session.get("direction", "asc")
     view = request.session.get("view", "list")
@@ -93,9 +110,17 @@ def context(request, *, folder: Node, special: str | None, query: str, toast=Non
         "view": view,
         "sort": sort,
         "sort_options": [
-            ("name", "Name"), ("size", "Size"), ("modified", "Last modified"), ("type", "Type")
+            ("name", "Name"),
+            ("size", "Size"),
+            ("modified", "Last modified"),
+            ("type", "Type"),
         ],
-        "sort_label": {"name": "Name", "size": "Size", "modified": "Modified", "type": "Type"}[sort],
+        "sort_label": {
+            "name": "Name",
+            "size": "Size",
+            "modified": "Modified",
+            "type": "Type",
+        }[sort],
         "themes": ["nord", "dim", "winter", "dracula", "retro", "corporate"],
         "direction": direction,
         "clipboard": request.session.get("clipboard"),
@@ -116,30 +141,38 @@ def share_rows() -> list[dict]:
     rows = []
     for scan_root in ScanRoot.objects.select_related("node"):
         run = scan_root.runs.first()
-        rows.append({
-            "share": scan_root,
-            "run": run,
-            "busy": bool(run and run.is_active),
-            "available": scan_root.probe(),
-        })
+        rows.append(
+            {
+                "share": scan_root,
+                "run": run,
+                "busy": bool(run and run.is_active),
+                "available": scan_root.probe(),
+            }
+        )
     return rows
 
 
 def tree_rows(request, current: Node) -> list[dict]:
     """Flattened sidebar tree; only expanded branches are walked."""
-    expanded = set(request.session.get("expanded", [])) | {str(n.pk) for n in current.ancestors()}
+    expanded = set(request.session.get("expanded", [])) | {
+        str(n.pk) for n in current.ancestors()
+    }
     expanded.add(str(root_folder().pk))
     rows: list[dict] = []
 
     def walk(folder: Node, depth: int):
-        children = list(Node.objects.children_of(folder).alive().folders().order_by(Lower("name")))
-        rows.append({
-            "node": folder,
-            "depth": depth,
-            "expanded": str(folder.pk) in expanded,
-            "has_children": bool(children),
-            "active": folder.pk == current.pk,
-        })
+        children = list(
+            Node.objects.children_of(folder).alive().folders().order_by(Lower("name"))
+        )
+        rows.append(
+            {
+                "node": folder,
+                "depth": depth,
+                "expanded": str(folder.pk) in expanded,
+                "has_children": bool(children),
+                "active": folder.pk == current.pk,
+            }
+        )
         if str(folder.pk) in expanded:
             for child in children:
                 walk(child, depth + 1)
@@ -148,7 +181,9 @@ def tree_rows(request, current: Node) -> list[dict]:
     return rows
 
 
-def explorer_response(request, *, folder: Node, special=None, query="", toast=None, push=None):
+def explorer_response(
+    request, *, folder: Node, special=None, query="", toast=None, push=None
+):
     ctx = context(request, folder=folder, special=special, query=query, toast=toast)
     html = render_to_string("explorer/index.html#workspace", ctx, request)
     html += render_to_string("explorer/index.html#sidebar-oob", ctx, request)
@@ -191,7 +226,11 @@ def selected(request) -> list[Node]:
 def index(request):
     folder = root_folder()
     remember(request, folder=folder)
-    return render(request, "explorer/index.html", context(request, folder=folder, special=None, query=""))
+    return render(
+        request,
+        "explorer/index.html",
+        context(request, folder=folder, special=None, query=""),
+    )
 
 
 @require_GET
@@ -199,7 +238,11 @@ def browse(request, pk):
     folder = get_object_or_404(Node, pk=pk, kind=Node.Kind.FOLDER)
     remember(request, folder=folder)
     if not is_htmx(request):
-        return render(request, "explorer/index.html", context(request, folder=folder, special=None, query=""))
+        return render(
+            request,
+            "explorer/index.html",
+            context(request, folder=folder, special=None, query=""),
+        )
     return explorer_response(request, folder=folder, push=folder.get_absolute_url())
 
 
@@ -210,9 +253,16 @@ def special_view(request, name):
     folder, _, _ = current_location(request)
     remember(request, folder=folder, special=name)
     if not is_htmx(request):
-        return render(request, "explorer/index.html", context(request, folder=folder, special=name, query=""))
+        return render(
+            request,
+            "explorer/index.html",
+            context(request, folder=folder, special=name, query=""),
+        )
     return explorer_response(
-        request, folder=folder, special=name, push=reverse("explorer:special", args=[name])
+        request,
+        folder=folder,
+        special=name,
+        push=reverse("explorer:special", args=[name]),
     )
 
 
@@ -256,7 +306,11 @@ def details(request, pk):
 
 @require_GET
 def activity(request):
-    return render(request, "explorer/index.html#activity", {"operations": Operation.objects.recent(40)})
+    return render(
+        request,
+        "explorer/index.html#activity",
+        {"operations": Operation.objects.recent(40)},
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -267,12 +321,22 @@ def modal(request, name):
     folder, special, _ = current_location(request)
     ids = request.GET.getlist("ids")
     nodes = list(Node.objects.filter(pk__in=ids))
-    ctx = {"folder": folder, "special": special, "nodes": nodes, "ids": ids, "node": nodes[0] if nodes else None}
+    ctx = {
+        "folder": folder,
+        "special": special,
+        "nodes": nodes,
+        "ids": ids,
+        "node": nodes[0] if nodes else None,
+    }
     if name == "move":
         blocked = {str(n.pk) for n in nodes}
         ctx["choices"] = [
-            {"node": f, "depth": len(f.ancestor_ids),
-             "blocked": str(f.pk) in blocked or any(n.is_folder and n.is_ancestor_of(f) for n in nodes)}
+            {
+                "node": f,
+                "depth": len(f.ancestor_ids),
+                "blocked": str(f.pk) in blocked
+                or any(n.is_folder and n.is_ancestor_of(f) for n in nodes),
+            }
             for f in Node.objects.alive().folders().order_by("path")
         ]
     elif name not in {"new-folder", "rename", "purge"}:
@@ -300,7 +364,11 @@ def op_new_folder(request):
     folder, _, _ = current_location(request)
     return _run(
         request,
-        lambda: services.create_folder(parent=folder, name=request.POST.get("name", ""), actor=request.user if request.user.is_authenticated else None),
+        lambda: services.create_folder(
+            parent=folder,
+            name=request.POST.get("name", ""),
+            actor=request.user if request.user.is_authenticated else None,
+        ),
         lambda op: f"Created {op.items.first().label}",
     )
 
@@ -310,7 +378,11 @@ def op_upload(request):
     folder, _, _ = current_location(request)
     return _run(
         request,
-        lambda: services.upload_files(parent=folder, files=request.FILES.getlist("files"), actor=request.user if request.user.is_authenticated else None),
+        lambda: services.upload_files(
+            parent=folder,
+            files=request.FILES.getlist("files"),
+            actor=request.user if request.user.is_authenticated else None,
+        ),
         lambda op: f"Added {_plural(op.item_count, 'file')}",
     )
 
@@ -320,7 +392,11 @@ def op_rename(request):
     node = get_object_or_404(Node, pk=request.POST.get("id"))
     return _run(
         request,
-        lambda: services.rename(node=node, name=request.POST.get("name", ""), actor=request.user if request.user.is_authenticated else None),
+        lambda: services.rename(
+            node=node,
+            name=request.POST.get("name", ""),
+            actor=request.user if request.user.is_authenticated else None,
+        ),
         lambda op: f"Renamed to {op.items.first().label}",
     )
 
@@ -331,7 +407,11 @@ def op_move(request):
     destination = get_object_or_404(Node, pk=request.POST.get("destination"))
     return _run(
         request,
-        lambda: services.move(nodes=nodes, destination=destination, actor=request.user if request.user.is_authenticated else None),
+        lambda: services.move(
+            nodes=nodes,
+            destination=destination,
+            actor=request.user if request.user.is_authenticated else None,
+        ),
         lambda op: f"Moved {_plural(op.item_count)} to {destination.name}",
     )
 
@@ -342,7 +422,11 @@ def op_star(request):
     starred = request.POST.get("starred", "1") == "1"
     return _run(
         request,
-        lambda: services.set_star(nodes=nodes, starred=starred, actor=request.user if request.user.is_authenticated else None),
+        lambda: services.set_star(
+            nodes=nodes,
+            starred=starred,
+            actor=request.user if request.user.is_authenticated else None,
+        ),
         lambda op: f"{'Starred' if starred else 'Unstarred'} {_plural(op.item_count)}",
     )
 
@@ -352,7 +436,9 @@ def op_trash(request):
     nodes = selected(request)
     return _run(
         request,
-        lambda: services.trash(nodes=nodes, actor=request.user if request.user.is_authenticated else None),
+        lambda: services.trash(
+            nodes=nodes, actor=request.user if request.user.is_authenticated else None
+        ),
         lambda op: f"Moved {_plural(op.item_count)} to Trash",
     )
 
@@ -362,17 +448,23 @@ def op_restore(request):
     nodes = selected(request) or list(Node.objects.trashed())
     return _run(
         request,
-        lambda: services.restore(nodes=nodes, actor=request.user if request.user.is_authenticated else None),
+        lambda: services.restore(
+            nodes=nodes, actor=request.user if request.user.is_authenticated else None
+        ),
         lambda op: f"Restored {_plural(op.item_count)}",
     )
 
 
 @require_POST
 def op_purge(request):
-    nodes = selected(request) or list(Node.objects.trashed().exclude(parent__trashed_at__isnull=False))
+    nodes = selected(request) or list(
+        Node.objects.trashed().exclude(parent__trashed_at__isnull=False)
+    )
     return _run(
         request,
-        lambda: services.purge(nodes=nodes, actor=request.user if request.user.is_authenticated else None),
+        lambda: services.purge(
+            nodes=nodes, actor=request.user if request.user.is_authenticated else None
+        ),
         lambda op: f"Deleted {_plural(op.item_count)} permanently",
     )
 
@@ -382,7 +474,9 @@ def op_download(request):
     nodes = selected(request)
     return _run(
         request,
-        lambda: services.record_download(nodes=nodes, actor=request.user if request.user.is_authenticated else None),
+        lambda: services.record_download(
+            nodes=nodes, actor=request.user if request.user.is_authenticated else None
+        ),
         lambda op: f"Prepared {_plural(op.item_count)} for download",
     )
 
@@ -416,7 +510,11 @@ def op_paste(request):
         request.session["clipboard"] = None
         return operation
 
-    return _run(request, run, lambda op: f"{op.get_kind_display()} {_plural(op.item_count)} to {folder.name}")
+    return _run(
+        request,
+        run,
+        lambda op: f"{op.get_kind_display()} {_plural(op.item_count)} to {folder.name}",
+    )
 
 
 @require_POST
@@ -424,7 +522,10 @@ def op_undo(request, pk):
     operation = get_object_or_404(Operation, pk=pk)
     return _run(
         request,
-        lambda: services.undo(operation=operation, actor=request.user if request.user.is_authenticated else None),
+        lambda: services.undo(
+            operation=operation,
+            actor=request.user if request.user.is_authenticated else None,
+        ),
         lambda op: f"Undid: {operation.get_kind_display().lower()}",
     )
 
@@ -448,8 +549,12 @@ def scan_start(request, pk):
     scan_root = get_object_or_404(ScanRoot, pk=pk)
     if not scan_root.enabled:
         return refresh(request, toast(f"{scan_root.label} is disabled.", "warning"))
-    if scan_root.runs.filter(status__in=[ScanRun.Status.QUEUED, ScanRun.Status.RUNNING]).exists():
-        return refresh(request, toast(f"{scan_root.label} is already being scanned.", "info"))
+    if scan_root.runs.filter(
+        status__in=[ScanRun.Status.QUEUED, ScanRun.Status.RUNNING]
+    ).exists():
+        return refresh(
+            request, toast(f"{scan_root.label} is already being scanned.", "info")
+        )
 
     run = ScanRun.objects.create(scan_root=scan_root)
     scan_share.enqueue(
@@ -465,5 +570,9 @@ def scan_start(request, pk):
         ScanRun.Status.FAILED: "error",
         ScanRun.Status.ABORTED: "warning",
     }.get(run.status, "info")
-    message = f"{scan_root.label}: {run.headline()}" if not run.is_active else f"Scanning {scan_root.label}…"
+    message = (
+        f"{scan_root.label}: {run.headline()}"
+        if not run.is_active
+        else f"Scanning {scan_root.label}…"
+    )
     return refresh(request, toast(message, level))

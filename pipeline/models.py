@@ -7,12 +7,12 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
+
 class JobKind(models.TextChoices):
     PROBE = "probe", "Probe"
     TRANSCODE = "transcode", "Transcode"
     FLOW = "flow", "Flow"
     SCAN = "scan", "Scan"
-
 
 
 class Codec(models.TextChoices):
@@ -169,8 +169,8 @@ class Library(models.Model):
     @property
     def is_scanning(self) -> bool:
         return bool(self.last_scan_started_at) and (
-                self.last_scan_finished_at is None
-                or self.last_scan_finished_at < self.last_scan_started_at
+            self.last_scan_finished_at is None
+            or self.last_scan_finished_at < self.last_scan_started_at
         )
 
     @property
@@ -209,13 +209,13 @@ class MediaFileQuerySet(models.QuerySet):
     def savings(self):
         """Bytes reclaimed by every file this pipeline has already rewritten."""
         return (
-                self.filter(original_size_bytes__gt=0).aggregate(
-                    saved=models.Sum(
-                        models.F("original_size_bytes") - models.F("size_bytes"),
-                        output_field=models.BigIntegerField(),
-                    )
-                )["saved"]
-                or 0
+            self.filter(original_size_bytes__gt=0).aggregate(
+                saved=models.Sum(
+                    models.F("original_size_bytes") - models.F("size_bytes"),
+                    output_field=models.BigIntegerField(),
+                )
+            )["saved"]
+            or 0
         )
 
 
@@ -229,7 +229,6 @@ def def_meta():
         "duration": "",
         "bitrate": "",
         "size": "",
-
     }
 
 
@@ -277,8 +276,9 @@ class MediaFile(models.Model):
     def __str__(self) -> str:
         return self.rel_path
 
-    def enqueue_task(self, kind: JobKind ):
+    def enqueue_task(self, kind: JobKind):
         from pipeline import tasks
+
         if kind == JobKind.PROBE:
             tasks.probe_file.enqueue(self.pk)
 
@@ -332,10 +332,10 @@ class MediaFile(models.Model):
         if not self.height:
             return "—"
         for threshold, label in (
-                (2000, "4K"),
-                (1000, "1080p"),
-                (700, "720p"),
-                (400, "480p"),
+            (2000, "4K"),
+            (1000, "1080p"),
+            (700, "720p"),
+            (400, "480p"),
         ):
             if self.height >= threshold:
                 return label
@@ -385,7 +385,6 @@ class Worker(models.Model):
             return False
         cutoff = timezone.now() - timedelta(seconds=settings.WORKER_OFFLINE_AFTER)
         return self.last_heartbeat >= cutoff
-
 
 
 class JobState(models.TextChoices):

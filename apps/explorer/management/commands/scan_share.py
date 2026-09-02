@@ -1,8 +1,8 @@
 """Scan mounted shares from the command line or cron.
 
-    ./manage.py scan_share --all
-    ./manage.py scan_share "Design share" --full
-    ./manage.py scan_share --register "Design share" /mnt/smb/design
+./manage.py scan_share --all
+./manage.py scan_share "Design share" --full
+./manage.py scan_share --register "Design share" /mnt/smb/design
 """
 
 from django.core.management.base import BaseCommand, CommandError
@@ -16,10 +16,14 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("label", nargs="?", help="Label of the share to scan.")
-        parser.add_argument("--all", action="store_true", help="Scan every enabled share.")
+        parser.add_argument(
+            "--all", action="store_true", help="Scan every enabled share."
+        )
         parser.add_argument("--full", action="store_true", help="Re-read every entry.")
         parser.add_argument(
-            "--register", nargs=2, metavar=("LABEL", "MOUNT_PATH"),
+            "--register",
+            nargs=2,
+            metavar=("LABEL", "MOUNT_PATH"),
             help="Create a share pointing at a mount, then scan it.",
         )
         parser.add_argument(
@@ -42,7 +46,11 @@ class Command(BaseCommand):
 
         for scan_root in roots:
             run = scan(scan_root, full=options["full"])
-            style = self.style.SUCCESS if run.status == ScanRun.Status.DONE else self.style.WARNING
+            style = (
+                self.style.SUCCESS
+                if run.status == ScanRun.Status.DONE
+                else self.style.WARNING
+            )
             self.stdout.write(
                 style(
                     f"{scan_root.label}: {run.get_status_display().lower()} — "

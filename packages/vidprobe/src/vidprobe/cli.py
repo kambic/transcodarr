@@ -490,13 +490,13 @@ def strip_langs(
     if lang or keep_und is not None or fallback is not None:
         policy = LanguagePolicy(
             preferred=[str(x) for x in lang] if lang else policy.preferred,
-            keep_undetermined=policy.keep_undetermined
-            if keep_und is None
-            else keep_und,
+            keep_undetermined=(
+                policy.keep_undetermined if keep_und is None else keep_und
+            ),
             keep_default_stream=policy.keep_default_stream,
-            fallback_keep_first=policy.fallback_keep_first
-            if fallback is None
-            else fallback,
+            fallback_keep_first=(
+                policy.fallback_keep_first if fallback is None else fallback
+            ),
             apply_to=policy.apply_to,
         )
 
@@ -910,16 +910,20 @@ def thumbs(
             outdir,
             mode=mode,
             width=width or defaults.width,
-            count=count
-            if count is not None
-            else (
-                None
-                if mode in {ThumbMode.INTERVAL, ThumbMode.SINGLE}
-                else defaults.count
+            count=(
+                count
+                if count is not None
+                else (
+                    None
+                    if mode in {ThumbMode.INTERVAL, ThumbMode.SINGLE}
+                    else defaults.count
+                )
             ),
-            interval=interval
-            if interval is not None
-            else (defaults.interval if mode is ThumbMode.INTERVAL else None),
+            interval=(
+                interval
+                if interval is not None
+                else (defaults.interval if mode is ThumbMode.INTERVAL else None)
+            ),
             scene_threshold=(
                 scene_threshold
                 if scene_threshold is not None
@@ -1473,9 +1477,11 @@ def config_show(ctx: typer.Context) -> None:
     table = _kv_table()
     table.add_row(
         "config file",
-        str(config.path)
-        if config.path
-        else Text("none - built-in defaults", style="yellow"),
+        (
+            str(config.path)
+            if config.path
+            else Text("none - built-in defaults", style="yellow")
+        ),
     )
     table.add_row("default build", config.default_build)
     table.add_row("active build", state.build.display)

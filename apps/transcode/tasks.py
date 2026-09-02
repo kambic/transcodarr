@@ -19,7 +19,11 @@ def run_transcode(context, job_id: str) -> dict:
     job = services.claim(job_id)
     if job is None:
         existing = TranscodeJob.objects.filter(pk=job_id).first()
-        return {"job": job_id, "status": existing.status if existing else "missing", "claimed": False}
+        return {
+            "job": job_id,
+            "status": existing.status if existing else "missing",
+            "claimed": False,
+        }
 
     task_id = getattr(getattr(context, "task_result", None), "id", "")
     if task_id:
@@ -37,7 +41,9 @@ def run_transcode(context, job_id: str) -> dict:
 
 
 @task
-def transcode_nodes(node_ids: list[str], preset_slug: str, actor_id: int | None = None) -> dict:
+def transcode_nodes(
+    node_ids: list[str], preset_slug: str, actor_id: int | None = None
+) -> dict:
     """Queue and dispatch a batch. Folders expand to the media inside them."""
     from django.contrib.auth import get_user_model
 

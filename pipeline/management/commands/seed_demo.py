@@ -121,9 +121,9 @@ class Command(BaseCommand):
                     "duration_seconds": random.randint(1200, 3600),
                     "bitrate_kbps": random.randint(1500, 18000),
                     "status": FileStatus.QUEUED if needs else FileStatus.READY,
-                    "verdict": Verdict.NEEDS_TRANSCODE
-                    if needs
-                    else Verdict.MEETS_TARGET,
+                    "verdict": (
+                        Verdict.NEEDS_TRANSCODE if needs else Verdict.MEETS_TARGET
+                    ),
                     "verdict_reason": (
                         f"Video is {codec}, target is hevc"
                         if needs

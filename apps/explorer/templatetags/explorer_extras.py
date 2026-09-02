@@ -31,9 +31,16 @@ COLOURS = {
 }
 
 LABELS = {
-    "folder": "Folder", "image": "Image", "video": "Video", "audio": "Audio",
-    "doc": "Document", "sheet": "Spreadsheet", "code": "Code", "archive": "Archive",
-    "design": "Design file", "file": "File",
+    "folder": "Folder",
+    "image": "Image",
+    "video": "Video",
+    "audio": "Audio",
+    "doc": "Document",
+    "sheet": "Spreadsheet",
+    "code": "Code",
+    "archive": "Archive",
+    "design": "Design file",
+    "file": "File",
 }
 
 
@@ -57,12 +64,22 @@ def facet_label(node):
 @register.filter
 def operation_badge(operation):
     tone = {
-        "trash": "badge-error", "purge": "badge-error", "restore": "badge-success",
-        "upload": "badge-success", "create_folder": "badge-success", "copy": "badge-info",
-        "move": "badge-info", "rename": "badge-warning", "undo": "badge-neutral", "transcode": "badge-accent",
-        "import": "badge-info", "vanished": "badge-warning",
+        "trash": "badge-error",
+        "purge": "badge-error",
+        "restore": "badge-success",
+        "upload": "badge-success",
+        "create_folder": "badge-success",
+        "copy": "badge-info",
+        "move": "badge-info",
+        "rename": "badge-warning",
+        "undo": "badge-neutral",
+        "transcode": "badge-accent",
+        "import": "badge-info",
+        "vanished": "badge-warning",
     }.get(operation.kind, "badge-ghost")
-    return format_html('<span class="badge badge-xs {}">{}</span>', tone, operation.get_kind_display())
+    return format_html(
+        '<span class="badge badge-xs {}">{}</span>', tone, operation.get_kind_display()
+    )
 
 
 @register.simple_tag(takes_context=True)

@@ -9,12 +9,19 @@ from .services import OperationError
 class TreeTests(TestCase):
     def setUp(self):
         self.root = Node.objects.create(name="My Drive", kind=Node.Kind.FOLDER)
-        self.docs = Node.objects.create(parent=self.root, name="Docs", kind=Node.Kind.FOLDER)
-        self.deep = Node.objects.create(parent=self.docs, name="2026", kind=Node.Kind.FOLDER)
+        self.docs = Node.objects.create(
+            parent=self.root, name="Docs", kind=Node.Kind.FOLDER
+        )
+        self.deep = Node.objects.create(
+            parent=self.docs, name="2026", kind=Node.Kind.FOLDER
+        )
         self.file = Node.objects.create(parent=self.deep, name="notes.md", size=100)
 
     def test_path_is_maintained(self):
-        self.assertEqual(self.file.path, f"/{self.root.id}/{self.docs.id}/{self.deep.id}/{self.file.id}")
+        self.assertEqual(
+            self.file.path,
+            f"/{self.root.id}/{self.docs.id}/{self.deep.id}/{self.file.id}",
+        )
         self.assertIn(self.file, self.root.descendants())
 
     def test_move_rewrites_descendant_paths(self):
@@ -61,7 +68,9 @@ class OperationLogTests(TestCase):
         self.assertFalse(operation.can_undo)
 
     def test_undo_move_returns_node_home(self):
-        elsewhere = Node.objects.create(parent=self.root, name="Archive", kind=Node.Kind.FOLDER)
+        elsewhere = Node.objects.create(
+            parent=self.root, name="Archive", kind=Node.Kind.FOLDER
+        )
         operation = services.move(nodes=[self.file], destination=elsewhere)
         services.undo(operation=operation)
         self.file.refresh_from_db()
@@ -82,14 +91,20 @@ class OperationLogTests(TestCase):
         services.trash(nodes=[self.file])
         operation = services.purge(nodes=[self.file])
         self.assertFalse(operation.can_undo)
-        self.assertEqual(operation.items.get().label, "report.pdf")  # log survives the delete
+        self.assertEqual(
+            operation.items.get().label, "report.pdf"
+        )  # log survives the delete
         with self.assertRaises(OperationError):
             services.undo(operation=operation)
 
     def test_copy_duplicates_subtree(self):
-        folder = Node.objects.create(parent=self.root, name="Source", kind=Node.Kind.FOLDER)
+        folder = Node.objects.create(
+            parent=self.root, name="Source", kind=Node.Kind.FOLDER
+        )
         Node.objects.create(parent=folder, name="a.txt", size=10)
-        destination = Node.objects.create(parent=self.root, name="Target", kind=Node.Kind.FOLDER)
+        destination = Node.objects.create(
+            parent=self.root, name="Target", kind=Node.Kind.FOLDER
+        )
         services.copy(nodes=[folder], destination=destination)
         self.assertEqual(destination.descendants().count(), 2)
 
@@ -105,15 +120,18 @@ class ViewTests(TestCase):
 
     def test_htmx_browse_returns_a_fragment(self):
         response = self.client.get(
-            reverse("explorer:browse", args=[self.root.pk]), headers={"HX-Request": "true"}
+            reverse("explorer:browse", args=[self.root.pk]),
+            headers={"HX-Request": "true"},
         )
         self.assertNotContains(response, "<!DOCTYPE html>")
         self.assertContains(response, 'id="listing"')
-        self.assertContains(response, 'hx-swap-oob')  # sidebar + activity refresh
+        self.assertContains(response, "hx-swap-oob")  # sidebar + activity refresh
 
     def test_trash_operation_through_the_view(self):
         self.client.get(reverse("explorer:index"))  # establishes the session location
-        response = self.client.post(reverse("explorer:op-trash"), {"ids": [str(self.file.pk)]})
+        response = self.client.post(
+            reverse("explorer:op-trash"), {"ids": [str(self.file.pk)]}
+        )
         self.assertEqual(response.status_code, 200)
         self.file.refresh_from_db()
         self.assertIsNotNone(self.file.trashed_at)
@@ -148,7 +166,9 @@ class ScanTests(TestCase):
         self.addCleanup(self.tmp.cleanup)
 
         self.root = Node.objects.create(name="My Drive", kind=Node.Kind.FOLDER)
-        self.mirror = Node.objects.create(parent=self.root, name="Design share", kind=Node.Kind.FOLDER)
+        self.mirror = Node.objects.create(
+            parent=self.root, name="Design share", kind=Node.Kind.FOLDER
+        )
         self.scan_root = ScanRoot.objects.create(
             label="Design share",
             mount_path=str(self.share),
@@ -176,7 +196,9 @@ class ScanTests(TestCase):
         self.assertEqual(imported.origin, Node.Origin.SCANNED)
         self.assertEqual(imported.parent.name, "Archive")
         self.assertTrue(imported.path.startswith(self.mirror.path))
-        self.assertEqual(imported.source_path, str(self.share / "Logos/Archive/old.svg"))
+        self.assertEqual(
+            imported.source_path, str(self.share / "Logos/Archive/old.svg")
+        )
 
     def test_rescan_is_idempotent(self):
         self.write("a.txt")
@@ -219,7 +241,10 @@ class ScanTests(TestCase):
         self.assertIsNotNone(node.missing_since)
         self.assertIsNone(node.trashed_at)  # default policy only flags
         self.assertEqual(
-            Operation.objects.filter(kind=Operation.Kind.VANISHED).get().items.get().label,
+            Operation.objects.filter(kind=Operation.Kind.VANISHED)
+            .get()
+            .items.get()
+            .label,
             "a.txt",
         )
 
@@ -252,7 +277,9 @@ class ScanTests(TestCase):
     def test_unreachable_share_changes_nothing(self):
         self.write("a.txt")
         scan(self.scan_root)
-        ScanRoot.objects.filter(pk=self.scan_root.pk).update(mount_path="/nonexistent/share")
+        ScanRoot.objects.filter(pk=self.scan_root.pk).update(
+            mount_path="/nonexistent/share"
+        )
         self.scan_root.refresh_from_db()
 
         run = scan(self.scan_root)
@@ -361,7 +388,9 @@ class ScanTests(TestCase):
         self.write("a.txt")
         scan(self.scan_root)
         node = Node.objects.get(parent=self.mirror, name="a.txt")
-        self.assertEqual(Node.objects.filter(parent=self.mirror, name="a.txt").count(), 1)
+        self.assertEqual(
+            Node.objects.filter(parent=self.mirror, name="a.txt").count(), 1
+        )
         self.assertEqual(node.origin, Node.Origin.SCANNED)
         self.assertEqual(node.size, 100)
 
@@ -376,7 +405,9 @@ class ScanTests(TestCase):
     def test_scan_start_view(self):
         self.write("a.txt")
         self.client.get(reverse("explorer:index"))
-        response = self.client.post(reverse("explorer:scan-start", args=[self.scan_root.pk]))
+        response = self.client.post(
+            reverse("explorer:scan-start", args=[self.scan_root.pk])
+        )
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Design share")
         self.assertEqual(ScanRun.objects.get().status, ScanRun.Status.DONE)

@@ -29,11 +29,29 @@ def make_clip(path: Path, seconds: int = 1, size: str = "320x240") -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
         [
-            "ffmpeg", "-nostdin", "-loglevel", "error", "-y",
-            "-f", "lavfi", "-i", f"testsrc=size={size}:rate=15:duration={seconds}",
-            "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}",
-            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-shortest", str(path),
+            "ffmpeg",
+            "-nostdin",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc=size={size}:rate=15:duration={seconds}",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency=440:duration={seconds}",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+            str(path),
         ],
         check=True,
         capture_output=True,
@@ -63,7 +81,9 @@ class TranscodeTestCase(TestCase):
         self.addCleanup(overrides.disable)
 
         self.root = Node.objects.create(name="My Drive", kind=Node.Kind.FOLDER)
-        self.folder = Node.objects.create(parent=self.root, name="Footage", kind=Node.Kind.FOLDER)
+        self.folder = Node.objects.create(
+            parent=self.root, name="Footage", kind=Node.Kind.FOLDER
+        )
         self.preset = Preset.objects.get(slug="proxy-480p")
 
     def settings_transcode(self):
@@ -105,7 +125,9 @@ class PresetTests(TestCase):
         self.assertIn("scale=-2:min(ih\\,720)", args)
 
     def test_remux_preset_copies_streams_without_quality_flags(self):
-        args = ffmpeg.build_args(Preset.objects.get(slug="remux-mp4"), "/in.mkv", "/out.mp4")
+        args = ffmpeg.build_args(
+            Preset.objects.get(slug="remux-mp4"), "/in.mkv", "/out.mp4"
+        )
         self.assertEqual(args[args.index("-c:v") + 1], "copy")
         self.assertNotIn("-crf", args)
 
@@ -149,7 +171,9 @@ class QueueingTests(TranscodeTestCase):
     def test_folders_expand_to_the_media_inside(self):
         Node.objects.create(parent=self.folder, name="a.mov", size=10)
         Node.objects.create(parent=self.folder, name="notes.txt", size=10)
-        nested = Node.objects.create(parent=self.folder, name="Day 2", kind=Node.Kind.FOLDER)
+        nested = Node.objects.create(
+            parent=self.folder, name="Day 2", kind=Node.Kind.FOLDER
+        )
         Node.objects.create(parent=nested, name="b.mp4", size=10)
 
         found = services.expand([self.folder])
@@ -167,7 +191,9 @@ class QueueingTests(TranscodeTestCase):
     def test_a_different_preset_can_be_queued(self):
         node = Node.objects.create(parent=self.folder, name="a.mov", size=10)
         services.queue(nodes=[node], preset=self.preset)
-        report = services.queue(nodes=[node], preset=Preset.objects.get(slug="web-720p"))
+        report = services.queue(
+            nodes=[node], preset=Preset.objects.get(slug="web-720p")
+        )
         self.assertEqual(len(report["queued"]), 1)
 
     def test_output_of_a_local_file_goes_beside_it(self):
@@ -175,17 +201,26 @@ class QueueingTests(TranscodeTestCase):
         self.assertEqual(services.output_folder(node), self.folder)
 
     def test_output_of_a_read_only_share_file_goes_to_a_managed_folder(self):
-        share_folder = Node.objects.create(parent=self.root, name="Share", kind=Node.Kind.FOLDER)
+        share_folder = Node.objects.create(
+            parent=self.root, name="Share", kind=Node.Kind.FOLDER
+        )
         share = ScanRoot.objects.create(
-            label="Share", mount_path=str(self.share_dir), node=share_folder, read_only=True
+            label="Share",
+            mount_path=str(self.share_dir),
+            node=share_folder,
+            read_only=True,
         )
         share_folder.scan_root = share
         share_folder.origin = Node.Origin.SCANNED
         share_folder.rel_path = "sub"
         share_folder.save()
         node = Node.objects.create(
-            parent=share_folder, name="a.mov", size=10,
-            origin=Node.Origin.SCANNED, scan_root=share, rel_path="sub/a.mov",
+            parent=share_folder,
+            name="a.mov",
+            size=10,
+            origin=Node.Origin.SCANNED,
+            scan_root=share,
+            rel_path="sub/a.mov",
         )
 
         destination = services.output_folder(node)
@@ -196,25 +231,40 @@ class QueueingTests(TranscodeTestCase):
 
     def test_share_file_at_the_mirror_root_also_goes_to_transcodes(self):
         """The mirror folder must keep matching the share, so nothing is filed into it."""
-        mirror = Node.objects.create(parent=self.root, name="Media share", kind=Node.Kind.FOLDER)
+        mirror = Node.objects.create(
+            parent=self.root, name="Media share", kind=Node.Kind.FOLDER
+        )
         share = ScanRoot.objects.create(
             label="Media", mount_path=str(self.share_dir), node=mirror, read_only=True
         )
         node = Node.objects.create(
-            parent=mirror, name="a.mov", size=10,
-            origin=Node.Origin.SCANNED, scan_root=share, rel_path="a.mov",
+            parent=mirror,
+            name="a.mov",
+            size=10,
+            origin=Node.Origin.SCANNED,
+            scan_root=share,
+            rel_path="a.mov",
         )
 
         self.assertEqual(services.output_folder(node).name, "Transcodes")
 
     def test_writable_share_files_keep_their_output_alongside(self):
-        mirror = Node.objects.create(parent=self.root, name="Scratch share", kind=Node.Kind.FOLDER)
+        mirror = Node.objects.create(
+            parent=self.root, name="Scratch share", kind=Node.Kind.FOLDER
+        )
         share = ScanRoot.objects.create(
-            label="Scratch", mount_path=str(self.share_dir), node=mirror, read_only=False
+            label="Scratch",
+            mount_path=str(self.share_dir),
+            node=mirror,
+            read_only=False,
         )
         node = Node.objects.create(
-            parent=mirror, name="a.mov", size=10,
-            origin=Node.Origin.SCANNED, scan_root=share, rel_path="a.mov",
+            parent=mirror,
+            name="a.mov",
+            size=10,
+            origin=Node.Origin.SCANNED,
+            scan_root=share,
+            rel_path="a.mov",
         )
 
         self.assertEqual(services.output_folder(node), mirror)
@@ -242,7 +292,9 @@ class QueueingTests(TranscodeTestCase):
             started_at=timezone.now() - timezone.timedelta(hours=9),
         )
         self.assertEqual(services.sweep_stuck(minutes=180), 1)
-        self.assertEqual(TranscodeJob.objects.get(pk=job.pk).status, TranscodeJob.Status.FAILED)
+        self.assertEqual(
+            TranscodeJob.objects.get(pk=job.pk).status, TranscodeJob.Status.FAILED
+        )
 
     def test_missing_file_fails_the_job_with_a_readable_error(self):
         node = Node.objects.create(parent=self.folder, name="ghost.mov", size=10)
@@ -342,8 +394,13 @@ class RunTests(TranscodeTestCase):
         """Cancel is checked mid-run, so a long encode stops promptly."""
         node = self.add_local_file(seconds=60)
         slow = Preset.objects.create(
-            slug="slow-test", label="Slow", container="mp4",
-            video_codec="libx264", crf=18, speed="veryslow", audio_codec="aac",
+            slug="slow-test",
+            label="Slow",
+            container="mp4",
+            video_codec="libx264",
+            crf=18,
+            speed="veryslow",
+            audio_codec="aac",
         )
         job = services.queue(nodes=[node], preset=slow)["queued"][0]
         TranscodeJob.objects.filter(pk=job.pk).update(cancel_requested=True)
@@ -357,14 +414,23 @@ class RunTests(TranscodeTestCase):
     def test_timeout_stops_a_runaway_encode(self):
         node = self.add_local_file(seconds=30)
         slow = Preset.objects.create(
-            slug="slow-timeout", label="Slow", container="mp4",
-            video_codec="libx265", crf=18, speed="veryslow", audio_codec="aac",
+            slug="slow-timeout",
+            label="Slow",
+            container="mp4",
+            video_codec="libx265",
+            crf=18,
+            speed="veryslow",
+            audio_codec="aac",
         )
         job = services.queue(nodes=[node], preset=slow)["queued"][0]
 
-        with override_settings(TRANSCODE={**self.settings_transcode(),
-                                          "WORK_DIR": str(self.work_dir),
-                                          "MAX_JOB_SECONDS": 1}):
+        with override_settings(
+            TRANSCODE={
+                **self.settings_transcode(),
+                "WORK_DIR": str(self.work_dir),
+                "MAX_JOB_SECONDS": 1,
+            }
+        ):
             job = services.run(services.claim(str(job.pk)))
 
         self.assertEqual(job.status, TranscodeJob.Status.FAILED)
@@ -440,7 +506,9 @@ class ViewTests(TranscodeTestCase):
         job = services.queue(nodes=[node], preset=self.preset)["queued"][0]
         response = self.client.post(reverse("transcode:cancel", args=[job.pk]))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(TranscodeJob.objects.get(pk=job.pk).status, TranscodeJob.Status.CANCELLED)
+        self.assertEqual(
+            TranscodeJob.objects.get(pk=job.pk).status, TranscodeJob.Status.CANCELLED
+        )
 
     def test_explorer_offers_the_convert_action(self):
         response = self.client.get(reverse("explorer:index"))

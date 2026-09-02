@@ -93,12 +93,22 @@ class Probe:
 def probe(path: str, *, timeout: int = 60) -> Probe:
     """Read stream metadata. Raises TranscodeFailed if the file isn't media."""
     args = [
-        binary("ffprobe"), "-v", "error", "-print_format", "json",
-        "-show_format", "-show_streams", path,
+        binary("ffprobe"),
+        "-v",
+        "error",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        path,
     ]
     try:
         completed = subprocess.run(
-            args, capture_output=True, text=True, timeout=timeout, stdin=subprocess.DEVNULL
+            args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            stdin=subprocess.DEVNULL,
         )
     except subprocess.TimeoutExpired as exc:
         raise TranscodeFailed(f"ffprobe timed out after {timeout}s") from exc
@@ -121,7 +131,9 @@ def probe(path: str, *, timeout: int = 60) -> Probe:
             result.video_codec = stream.get("codec_name", "")
             result.width = int(stream.get("width") or 0)
             result.height = int(stream.get("height") or 0)
-            result.fps = parse_rate(stream.get("avg_frame_rate") or stream.get("r_frame_rate"))
+            result.fps = parse_rate(
+                stream.get("avg_frame_rate") or stream.get("r_frame_rate")
+            )
             if not result.duration:
                 result.duration = float(stream.get("duration") or 0)
         elif stream.get("codec_type") == "audio" and not result.audio_codec:
@@ -150,8 +162,15 @@ def parse_rate(value: str | None) -> float:
 def build_args(preset, source: str, destination: str) -> list[str]:
     """Turn a Preset row into an ffmpeg argv list."""
     args = [
-        binary("ffmpeg"), "-nostdin", "-hide_banner", "-loglevel", "error",
-        "-y", "-progress", "pipe:1", "-nostats",
+        binary("ffmpeg"),
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-progress",
+        "pipe:1",
+        "-nostats",
     ]
     if preset.hardware_accel:
         args += ["-hwaccel", preset.hardware_accel]
@@ -285,12 +304,12 @@ def stop(process: subprocess.Popen, grace: float = 5.0) -> None:
     """Ask ffmpeg to stop, insist if it doesn't."""
     try:
         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-    except (ProcessLookupError, PermissionError):
+    except ProcessLookupError, PermissionError:
         process.terminate()
     try:
         process.wait(timeout=grace)
     except subprocess.TimeoutExpired:
         try:
             os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
+        except ProcessLookupError, PermissionError:
             process.kill()

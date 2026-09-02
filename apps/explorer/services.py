@@ -64,15 +64,23 @@ def assert_valid_destination(nodes: Sequence[Node], destination: Node) -> None:
         if node.pk == destination.pk:
             raise OperationError(f"{node.name} can't go inside itself.")
         if node.is_folder and node.is_ancestor_of(destination):
-            raise OperationError(f"{node.name} can't go inside one of its own subfolders.")
+            raise OperationError(
+                f"{node.name} can't go inside one of its own subfolders."
+            )
 
 
 @contextmanager
-def record(kind: str, *, actor=None, source=None, target=None, reversible=True, **detail):
+def record(
+    kind: str, *, actor=None, source=None, target=None, reversible=True, **detail
+):
     """Open an Operation, hand it to the caller, close it either way."""
     op = Operation.objects.create(
-        kind=kind, actor=actor, source=source, target=target,
-        reversible=reversible, detail=detail,
+        kind=kind,
+        actor=actor,
+        source=source,
+        target=target,
+        reversible=reversible,
+        detail=detail,
     )
     try:
         yield op
@@ -82,7 +90,9 @@ def record(kind: str, *, actor=None, source=None, target=None, reversible=True, 
     op.finish()
 
 
-def log_item(op: Operation, node: Node, before: dict | None = None, after: dict | None = None):
+def log_item(
+    op: Operation, node: Node, before: dict | None = None, after: dict | None = None
+):
     return OperationItem.objects.create(
         operation=op,
         node=node,
@@ -106,7 +116,10 @@ def create_folder(*, parent: Node, name: str, actor=None) -> Operation:
     assert_mutable([parent])
     with record(Operation.Kind.CREATE_FOLDER, actor=actor, target=parent) as op:
         folder = Node.objects.create(
-            parent=parent, name=unique_name(parent, name), kind=Node.Kind.FOLDER, owner=actor
+            parent=parent,
+            name=unique_name(parent, name),
+            kind=Node.Kind.FOLDER,
+            owner=actor,
         )
         log_item(op, folder)
     return op
@@ -192,7 +205,9 @@ def copy(*, nodes: Sequence[Node], destination: Node, actor=None) -> Operation:
     with record(Operation.Kind.COPY, actor=actor, target=destination) as op:
         for node in nodes:
             duplicate = _clone(node, destination, actor)
-            log_item(op, duplicate, before={"copied_from": str(node.pk), "name": node.name})
+            log_item(
+                op, duplicate, before={"copied_from": str(node.pk), "name": node.name}
+            )
     return op
 
 
@@ -282,7 +297,10 @@ def undo(*, operation: Operation, actor=None) -> Operation:
         raise OperationError("That operation can't be undone.")
 
     with record(
-        Operation.Kind.UNDO, actor=actor, reversible=False, undid=operation.get_kind_display()
+        Operation.Kind.UNDO,
+        actor=actor,
+        reversible=False,
+        undid=operation.get_kind_display(),
     ) as reverse_op:
         reverse_op.undo_of = operation
         reverse_op.save(update_fields=["undo_of"])
@@ -298,8 +316,12 @@ def undo(*, operation: Operation, actor=None) -> Operation:
                 Operation.Kind.COPY,
             }:
                 OperationItem.objects.create(
-                    operation=reverse_op, node=None, label=node.name,
-                    size=item.size, before=node.snapshot(), after={"deleted": True},
+                    operation=reverse_op,
+                    node=None,
+                    label=node.name,
+                    size=item.size,
+                    before=node.snapshot(),
+                    after={"deleted": True},
                 )
                 node.delete()
                 continue
@@ -317,15 +339,21 @@ def undo(*, operation: Operation, actor=None) -> Operation:
             elif operation.kind in {Operation.Kind.TRASH, Operation.Kind.RESTORE}:
                 node.trashed_at = None
                 if before.get("trashed_at"):
-                    node.trashed_at = timezone.datetime.fromisoformat(before["trashed_at"])
+                    node.trashed_at = timezone.datetime.fromisoformat(
+                        before["trashed_at"]
+                    )
                 node.save(update_fields=["trashed_at", "modified_at"])
             elif operation.kind in {Operation.Kind.STAR, Operation.Kind.UNSTAR}:
                 node.starred = before.get("starred", False)
                 node.save(update_fields=["starred", "modified_at"])
 
             OperationItem.objects.create(
-                operation=reverse_op, node=node, label=node.name,
-                size=item.size, before=snapshot, after=node.snapshot(),
+                operation=reverse_op,
+                node=node,
+                label=node.name,
+                size=item.size,
+                before=snapshot,
+                after=node.snapshot(),
             )
 
         operation.undone_at = timezone.now()

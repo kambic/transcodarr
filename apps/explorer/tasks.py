@@ -13,7 +13,9 @@ from .models import Node, Operation, ScanRoot, ScanRun
 
 
 @task(takes_context=True)
-def scan_share(context, scan_root_id: str, full: bool = False, run_id: str | None = None) -> dict:
+def scan_share(
+    context, scan_root_id: str, full: bool = False, run_id: str | None = None
+) -> dict:
     """Walk one mounted share and reconcile it with the catalogue.
 
     ``full=True`` re-reads every entry instead of trusting size and mtime, which
@@ -88,6 +90,8 @@ def prune_operation_log(keep: int = 5_000) -> int:
     total = Operation.objects.count()
     if total <= keep:
         return 0
-    doomed = Operation.objects.order_by("created_at").values_list("pk", flat=True)[: total - keep]
+    doomed = Operation.objects.order_by("created_at").values_list("pk", flat=True)[
+        : total - keep
+    ]
     deleted, _ = Operation.objects.filter(pk__in=list(doomed)).delete()
     return deleted

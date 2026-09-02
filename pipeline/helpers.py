@@ -79,6 +79,7 @@ def build_stream(
 
 # --- progress plumbing, mirroring the ffmpeg-python show_progress.py example ---
 
+
 @contextlib.contextmanager
 def _tmpdir_scope():
     tmpdir = tempfile.mkdtemp()
@@ -118,6 +119,7 @@ def _watch_progress(handler, should_cancel=None):
             sock.bind(socket_filename)
             sock.listen(1)
             import gevent
+
             child = gevent.spawn(_do_watch_progress, sock, handler, should_cancel)
             try:
                 yield socket_filename

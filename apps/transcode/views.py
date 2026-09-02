@@ -13,7 +13,10 @@ from .tasks import run_transcode
 
 def panel_context(limit: int = 12) -> dict:
     jobs = list(TranscodeJob.objects.recent(limit))
-    return {"transcode_jobs": jobs, "transcode_busy": any(job.is_active for job in jobs)}
+    return {
+        "transcode_jobs": jobs,
+        "transcode_busy": any(job.is_active for job in jobs),
+    }
 
 
 def panel_response(toast: dict | None = None, request=None) -> HttpResponse:
@@ -54,7 +57,9 @@ def start(request):
     preset = get_object_or_404(Preset, slug=request.POST.get("preset"), enabled=True)
     nodes = list(Node.objects.filter(pk__in=request.POST.getlist("ids")).alive())
     if not nodes:
-        return panel_response({"message": "Nothing selected.", "level": "warning"}, request)
+        return panel_response(
+            {"message": "Nothing selected.", "level": "warning"}, request
+        )
 
     actor = request.user if not isinstance(request.user, AnonymousUser) else None
     report = services.queue(nodes=nodes, preset=preset, actor=actor)
@@ -82,7 +87,9 @@ def start(request):
 def cancel(request, pk):
     job = get_object_or_404(TranscodeJob, pk=pk)
     services.cancel(job)
-    return panel_response({"message": f"Stopping {job.source.name}", "level": "info"}, request)
+    return panel_response(
+        {"message": f"Stopping {job.source.name}", "level": "info"}, request
+    )
 
 
 @require_POST
@@ -90,7 +97,9 @@ def retry(request, pk):
     job = get_object_or_404(TranscodeJob, pk=pk)
     services.retry(job)
     run_transcode.enqueue(str(job.pk))
-    return panel_response({"message": f"Retrying {job.source.name}", "level": "info"}, request)
+    return panel_response(
+        {"message": f"Retrying {job.source.name}", "level": "info"}, request
+    )
 
 
 @require_POST
@@ -99,4 +108,6 @@ def clear(request):
     removed, _ = TranscodeJob.objects.exclude(
         status__in=[TranscodeJob.Status.QUEUED, TranscodeJob.Status.RUNNING]
     ).delete()
-    return panel_response({"message": f"Cleared {removed} finished job(s)", "level": "info"}, request)
+    return panel_response(
+        {"message": f"Cleared {removed} finished job(s)", "level": "info"}, request
+    )

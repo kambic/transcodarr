@@ -72,36 +72,36 @@ def scan_library(context, library_id: int) -> dict:
 
     for file in files:
 
-            seen.add(str(file))
-            stat = file.stat()
+        seen.add(str(file))
+        stat = file.stat()
 
-            mtime = datetime.fromtimestamp(stat.st_mtime, tz=dt_timezone.utc)
-            media_file, created = MediaFile.objects.get_or_create(
-                path=str(file),
-                defaults={
-                    "library": library,
-                    "rel_path": str(file.relative_to(root)),
-                    "size_bytes": stat.st_size,
-                    "original_size_bytes": stat.st_size,
-                    "mtime": mtime,
-                },
+        mtime = datetime.fromtimestamp(stat.st_mtime, tz=dt_timezone.utc)
+        media_file, created = MediaFile.objects.get_or_create(
+            path=str(file),
+            defaults={
+                "library": library,
+                "rel_path": str(file.relative_to(root)),
+                "size_bytes": stat.st_size,
+                "original_size_bytes": stat.st_size,
+                "mtime": mtime,
+            },
+        )
+        if created:
+            added += 1
+            probe_file.enqueue(media_file.pk)
+            continue
+
+        # Re-probe anything that changed on disk since we last looked.
+        changed = media_file.size_bytes != stat.st_size or media_file.mtime != mtime
+        if changed and not media_file.is_busy:
+            MediaFile.objects.filter(pk=media_file.pk).update(
+                size_bytes=stat.st_size,
+                mtime=mtime,
+                status=FileStatus.NEW,
+                verdict=Verdict.UNKNOWN,
             )
-            if created:
-                added += 1
-                probe_file.enqueue(media_file.pk)
-                continue
-
-            # Re-probe anything that changed on disk since we last looked.
-            changed = media_file.size_bytes != stat.st_size or media_file.mtime != mtime
-            if changed and not media_file.is_busy:
-                MediaFile.objects.filter(pk=media_file.pk).update(
-                    size_bytes=stat.st_size,
-                    mtime=mtime,
-                    status=FileStatus.NEW,
-                    verdict=Verdict.UNKNOWN,
-                )
-                updated += 1
-                probe_file.enqueue(media_file.pk)
+            updated += 1
+            probe_file.enqueue(media_file.pk)
 
     # Anything not seen this pass *might* be gone — but a worker may have just
     # renamed it (mp4 -> mkv) while we were walking. Confirm against the disk
@@ -160,14 +160,13 @@ def probe_file(context, media_file_id: int) -> str:
 
     try:
         data = ffmpeg.probe(media_file.path)
-        video = next((s for s in data['streams'] if s.get("codec_type") == "video"))
-        audio = list((s for s in data['streams'] if s.get("codec_type") == "audio"))
+        video = next((s for s in data["streams"] if s.get("codec_type") == "video"))
+        audio = list((s for s in data["streams"] if s.get("codec_type") == "audio"))
 
         meta = {
             "format": data.pop("format"),
             "audio": audio,
             "video": video,
-
             "cv": video["codec_name"],
             "ca": audio[0]["codec_name"] if audio else "",
             "height": video["height"] if video.get("height") else "",
@@ -264,6 +263,7 @@ def queue_transcode(media_file_id: int, priority: int = 0) -> Job:
         lambda: run_transcode.using(priority=priority).enqueue(job.pk)
     )
     return job
+
 
 #
 # @task(queue_name="transcode", takes_context=True)
@@ -445,7 +445,7 @@ def _open_job(context, *, kind, media_file=None, library=None) -> Job:
 
 
 def _finish_job(
-        job: Job, state, *, progress: float | None = None, size_after=None, log=None
+    job: Job, state, *, progress: float | None = None, size_after=None, log=None
 ) -> None:
     """Close a job with a targeted UPDATE.
 
@@ -496,8 +496,6 @@ def _human(num: int) -> str:
     return f"{value:.1f} TB"
 
 
-
-
 def build_stream(profile, source: Path, destination: Path, probe_data=None):
     """Build the ffmpeg-python stream graph for one file."""
 
@@ -512,7 +510,12 @@ def build_stream(profile, source: Path, destination: Path, probe_data=None):
 
     stream = ffmpeg.input(str(source), **input_kwargs)
 
-    if profile.max_height and probe_data and probe_data.height and probe_data.height > profile.max_height:
+    if (
+        profile.max_height
+        and probe_data
+        and probe_data.height
+        and probe_data.height > profile.max_height
+    ):
         scaler = "scale_vaapi" if profile.hw_accel == "vaapi" else "scale"
         stream = stream.filter(scaler, -2, profile.max_height)
 
@@ -572,6 +575,7 @@ def build_stream(profile, source: Path, destination: Path, probe_data=None):
 #
 #     command = ffmpeg.build_command(profile, source, destination, probe_data)
 
+
 # def run_transcode(profile, source: Path, destination: Path, probe_data, should_cancel=None, on_progress=None):
 @task(queue_name="transcode", takes_context=True)
 def run_transcode(context, job_id: int) -> dict:
@@ -583,24 +587,24 @@ def run_transcode(context, job_id: int) -> dict:
     cache_dir.mkdir(parents=True, exist_ok=True)
     destination = cache_dir / f"job{job.pk}-{media_file.stem[:80]}.{profile.container}"
 
-#     Job.objects.filter(pk=job.pk).update(
-#         state=JobState.RUNNING,
-#         started_at=timezone.now(),
-#         worker=worker,
-#         attempt=context.attempt,
-#         task_result_id=context.task_result.id,
-#         command=" ".join(command),
-#         size_before=media_file.size_bytes,
-#         progress=0.0,
-#     )
+    #     Job.objects.filter(pk=job.pk).update(
+    #         state=JobState.RUNNING,
+    #         started_at=timezone.now(),
+    #         worker=worker,
+    #         attempt=context.attempt,
+    #         task_result_id=context.task_result.id,
+    #         command=" ".join(command),
+    #         size_before=media_file.size_bytes,
+    #         progress=0.0,
+    #     )
     try:
-        (ffmpeg
-         .input(media_file)
-         .output(destination)
-         .overwrite_output()
-         .run(capture_stdout=True, capture_stderr=True)
-         # .global_args('-progress', 'unix://{}'.format(socket_filename))
-         )
+        (
+            ffmpeg.input(media_file)
+            .output(destination)
+            .overwrite_output()
+            .run(capture_stdout=True, capture_stderr=True)
+            # .global_args('-progress', 'unix://{}'.format(socket_filename))
+        )
     except ffmpeg.Error as e:
         print(e.stderr, file=sys.stderr)
         sys.exit(1)

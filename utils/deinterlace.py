@@ -1,11 +1,11 @@
 import asyncio
-import json
 import os
 import re
 import socket
 import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
+
 import ffmpeg
 
 
@@ -104,9 +104,9 @@ class InterlacedTranscoder:
         return float(format_info.get("duration", 0.0))
 
     async def _run_with_progress(
-            self,
-            output_stream: Any,
-            progress_callback: Optional[Callable[[float], None]] = None,
+        self,
+        output_stream: Any,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
         """Executes FFmpeg asynchronously while parsing progress via a UNIX domain socket."""
         total_duration = self.get_duration()
@@ -182,14 +182,12 @@ class InterlacedTranscoder:
         except Exception:
             return False
 
-    async def transcode_progressive(
+    def transcode_progressive(
         self,
         output_path: str | Path,
         vcodec: str = "libx265",
         crf: int = 23,
-        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
-        """Encodes progressive output stream using software encoders."""
         stream = ffmpeg.input(str(self.input_path))
 
         # 1. Collect present streams dynamically
@@ -198,28 +196,30 @@ class InterlacedTranscoder:
             streams.append(stream.audio)
 
         # 2. Unpack streams into output node
-        out = (
+        process = (
             ffmpeg.output(
                 *streams,
                 str(output_path),
                 vcodec=vcodec,
                 acodec="copy" if self._has_audio() else None,
                 qp=crf,
-                vf="format=nv12,hwupload",
-            )
-            .global_args("-vaapi_device", self.vaapi_device)
-            .global_args("-filter_hw_device", self.vaapi_device)
+                # vf="format=nv12,hwupload",
+            ).run_async(pipe_stdout=True, pipe_stderr=True)
+            # .global_args("-vaapi_device", self.vaapi_device)
+            # .global_args("-filter_hw_device", self.vaapi_device)
         )
-        await self._run_with_progress(out, progress_callback)
+        out, err = await process.communicate()
+        print(f"\rEncoding s", end="", flush=True)
+
+        # await self._run_with_progress(process, progress_callback)
 
     async def transcode_interlaced(
         self,
         output_path: str | Path,
-        format_type: str = "mp4",  # 'mp4' or 'mpegts'
+        format_type: str = "mp4",
         tff: bool = True,
         progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
-        """Encodes interlaced output stream (HEVC/MP4 or MPEG-2 TS)."""
         stream = ffmpeg.input(str(self.input_path))
         top_val = 1 if tff else 0
 
@@ -293,9 +293,7 @@ async def main():
 
     # 1. Progressive Encoding with Async Progress Bar
     print("=== Starting Async Progressive Transcode ===")
-    await transcoder.transcode_progressive(
-        vaapi_out, crf=22, progress_callback=print_progress
-    )
+    res = transcoder.transcode_progressive(vaapi_out, crf=22)
     print("\nEncoding complete.\n")
 
     # 2. Inspecting Quality with StreamInspector

@@ -145,9 +145,9 @@ def list_streams(
                 title=title,
                 channels=entry.get("channels"),
                 layout=entry.get("channel_layout"),
-                sample_rate=int(entry["sample_rate"])
-                if entry.get("sample_rate")
-                else None,
+                sample_rate=(
+                    int(entry["sample_rate"]) if entry.get("sample_rate") else None
+                ),
                 bitrate=bitrate,
                 width=entry.get("width"),
                 height=entry.get("height"),

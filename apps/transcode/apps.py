@@ -20,7 +20,7 @@ def check_ffmpeg(app_configs, **kwargs):
         Warning(
             "ffmpeg or ffprobe was not found on PATH.",
             hint="Install ffmpeg, or set TRANSCODE['FFMPEG'] and TRANSCODE['FFPROBE']. "
-                 "Transcode jobs will fail with a clear error until then.",
+            "Transcode jobs will fail with a clear error until then.",
             id="transcode.W001",
         )
     ]

@@ -18,7 +18,7 @@ class TranscodeProfileAdmin(admin.ModelAdmin):
 @admin.register(MediaFile)
 class MediaFileAdmin(admin.ModelAdmin):
     list_display = ["rel_path", "library", "video_codec", "height", "status", "verdict"]
-    list_filter = ["status", "verdict",  "library"]
+    list_filter = ["status", "verdict", "library"]
     search_fields = ["rel_path", "path"]
     # Django 6.1: name the related fields instead of list_select_related = True.
     list_select_related = ["library"]

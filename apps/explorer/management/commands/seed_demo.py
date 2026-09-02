@@ -64,7 +64,9 @@ class Command(BaseCommand):
     help = "Create a demo folder tree to click around in."
 
     def add_arguments(self, parser):
-        parser.add_argument("--reset", action="store_true", help="Delete existing nodes first.")
+        parser.add_argument(
+            "--reset", action="store_true", help="Delete existing nodes first."
+        )
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -73,18 +75,24 @@ class Command(BaseCommand):
             Node.objects.all().delete()
 
         if Node.objects.exists():
-            self.stdout.write(self.style.WARNING("Nodes already exist. Use --reset to start over."))
+            self.stdout.write(
+                self.style.WARNING("Nodes already exist. Use --reset to start over.")
+            )
             return
 
         root = Node.objects.create(name="My Drive", kind=Node.Kind.FOLDER)
         created = self.build(TREE, root)
-        self.stdout.write(self.style.SUCCESS(f"Created {created} nodes under {root.name}."))
+        self.stdout.write(
+            self.style.SUCCESS(f"Created {created} nodes under {root.name}.")
+        )
 
     def build(self, spec: dict, parent: Node) -> int:
         count = 0
         for name, value in spec.items():
             if isinstance(value, dict):
-                folder = Node.objects.create(parent=parent, name=name, kind=Node.Kind.FOLDER)
+                folder = Node.objects.create(
+                    parent=parent, name=name, kind=Node.Kind.FOLDER
+                )
                 count += 1 + self.build(value, folder)
             else:
                 size, days, *starred = value
@@ -95,7 +103,11 @@ class Command(BaseCommand):
                     size=size,
                     starred=bool(starred and starred[0]),
                 )
-                stamp = timezone.now() - timedelta(days=days, hours=random.randint(0, 20))
-                Node.objects.filter(pk=node.pk).update(modified_at=stamp, created_at=stamp)
+                stamp = timezone.now() - timedelta(
+                    days=days, hours=random.randint(0, 20)
+                )
+                Node.objects.filter(pk=node.pk).update(
+                    modified_at=stamp, created_at=stamp
+                )
                 count += 1
         return count

@@ -6,13 +6,32 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('explorer', '0002_scanrun_node_fs_modified_at_node_missing_since_and_more'),
+        ("explorer", "0002_scanrun_node_fs_modified_at_node_missing_since_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='operation',
-            name='kind',
-            field=models.CharField(choices=[('create_folder', 'Created folder'), ('upload', 'Added files'), ('rename', 'Renamed'), ('move', 'Moved'), ('copy', 'Copied'), ('trash', 'Moved to trash'), ('restore', 'Restored'), ('purge', 'Deleted permanently'), ('star', 'Starred'), ('unstar', 'Unstarred'), ('download', 'Downloaded'), ('import', 'Imported from share'), ('transcode', 'Converted'), ('vanished', 'Gone from share'), ('undo', 'Undid an operation')], max_length=20),
+            model_name="operation",
+            name="kind",
+            field=models.CharField(
+                choices=[
+                    ("create_folder", "Created folder"),
+                    ("upload", "Added files"),
+                    ("rename", "Renamed"),
+                    ("move", "Moved"),
+                    ("copy", "Copied"),
+                    ("trash", "Moved to trash"),
+                    ("restore", "Restored"),
+                    ("purge", "Deleted permanently"),
+                    ("star", "Starred"),
+                    ("unstar", "Unstarred"),
+                    ("download", "Downloaded"),
+                    ("import", "Imported from share"),
+                    ("transcode", "Converted"),
+                    ("vanished", "Gone from share"),
+                    ("undo", "Undid an operation"),
+                ],
+                max_length=20,
+            ),
         ),
     ]

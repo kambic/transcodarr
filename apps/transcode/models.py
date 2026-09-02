@@ -33,13 +33,20 @@ class Preset(models.Model):
     description = models.CharField(max_length=250, blank=True)
     media_kind = models.CharField(max_length=5, choices=Media, default=Media.VIDEO)
 
-    container = models.CharField(max_length=10, default="mp4", help_text="Output extension.")
+    container = models.CharField(
+        max_length=10, default="mp4", help_text="Output extension."
+    )
     video_codec = models.CharField(
-        max_length=20, default="libx264",
+        max_length=20,
+        default="libx264",
         help_text="Codec name, 'copy' to remux, or 'none' to drop the video stream.",
     )
-    crf = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Quality; lower is better.")
-    speed = models.CharField(max_length=12, blank=True, help_text="x264/x265 -preset, e.g. veryfast.")
+    crf = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Quality; lower is better."
+    )
+    speed = models.CharField(
+        max_length=12, blank=True, help_text="x264/x265 -preset, e.g. veryfast."
+    )
     max_height = models.PositiveSmallIntegerField(
         null=True, blank=True, help_text="Downscale to this height. Never upscales."
     )
@@ -49,14 +56,20 @@ class Preset(models.Model):
     audio_bitrate = models.CharField(max_length=10, blank=True, default="128k")
 
     hardware_accel = models.CharField(
-        max_length=20, blank=True, help_text="ffmpeg -hwaccel value, e.g. vaapi. Leave blank for CPU."
+        max_length=20,
+        blank=True,
+        help_text="ffmpeg -hwaccel value, e.g. vaapi. Leave blank for CPU.",
     )
     threads = models.PositiveSmallIntegerField(
-        null=True, blank=True, help_text="0 lets ffmpeg decide. Set a low number to stay polite."
+        null=True,
+        blank=True,
+        help_text="0 lets ffmpeg decide. Set a low number to stay polite.",
     )
     extra_args = models.JSONField(default=list, blank=True)
 
-    suffix = models.CharField(max_length=30, blank=True, help_text="Appended to the file stem.")
+    suffix = models.CharField(
+        max_length=30, blank=True, help_text="Appended to the file stem."
+    )
     enabled = models.BooleanField(default=True)
     position = models.PositiveSmallIntegerField(default=0)
 
@@ -72,7 +85,9 @@ class Preset(models.Model):
         ):
             raise ValidationError({"extra_args": "Must be a list of strings."})
         if self.video_codec == self.NO_STREAM and self.audio_codec == self.NO_STREAM:
-            raise ValidationError("A preset that drops both streams would produce nothing.")
+            raise ValidationError(
+                "A preset that drops both streams would produce nothing."
+            )
 
     def output_name(self, source_name: str) -> str:
         stem = os.path.splitext(source_name)[0]
@@ -125,12 +140,18 @@ class MediaProbe(models.Model):
             return ""
         hours, rest = divmod(total, 3600)
         minutes, seconds = divmod(rest, 60)
-        return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"
+        return (
+            f"{hours}:{minutes:02d}:{seconds:02d}"
+            if hours
+            else f"{minutes}:{seconds:02d}"
+        )
 
 
 class TranscodeJobQuerySet(models.QuerySet):
     def active(self):
-        return self.filter(status__in=[TranscodeJob.Status.QUEUED, TranscodeJob.Status.RUNNING])
+        return self.filter(
+            status__in=[TranscodeJob.Status.QUEUED, TranscodeJob.Status.RUNNING]
+        )
 
     def recent(self, limit: int = 12):
         return self.select_related("source", "preset", "output")[:limit]
@@ -145,14 +166,24 @@ class TranscodeJob(models.Model):
         CANCELLED = "cancelled", "Cancelled"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    source = models.ForeignKey(Node, on_delete=models.CASCADE, related_name="transcode_jobs")
+    source = models.ForeignKey(
+        Node, on_delete=models.CASCADE, related_name="transcode_jobs"
+    )
     preset = models.ForeignKey(Preset, on_delete=models.PROTECT, related_name="jobs")
     destination = models.ForeignKey(
-        Node, null=True, blank=True, on_delete=models.SET_NULL, related_name="transcode_targets",
+        Node,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="transcode_targets",
         help_text="Folder the result is filed into.",
     )
     output = models.ForeignKey(
-        Node, null=True, blank=True, on_delete=models.SET_NULL, related_name="transcoded_from"
+        Node,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="transcoded_from",
     )
 
     status = models.CharField(max_length=9, choices=Status, default=Status.QUEUED)
@@ -171,11 +202,18 @@ class TranscodeJob(models.Model):
     task_id = models.CharField(max_length=64, blank=True)
 
     requested_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True,
-        on_delete=models.SET_NULL, related_name="transcode_jobs",
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="transcode_jobs",
     )
     operation = models.ForeignKey(
-        Operation, null=True, blank=True, on_delete=models.SET_NULL, related_name="transcode_jobs"
+        Operation,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="transcode_jobs",
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -195,7 +233,9 @@ class TranscodeJob(models.Model):
             ),
         ]
         indexes = [
-            models.Index(fields=["status", "-created_at"], name="job_status_recent_idx"),
+            models.Index(
+                fields=["status", "-created_at"], name="job_status_recent_idx"
+            ),
         ]
 
     def __str__(self) -> str:
