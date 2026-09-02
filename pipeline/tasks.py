@@ -265,136 +265,136 @@ def queue_transcode(media_file_id: int, priority: int = 0) -> Job:
     )
     return job
 
-
-@task(queue_name="transcode", takes_context=True)
-def run_transcode(context, job_id: int) -> dict:
-    """Encode one file to the cache directory, then swap it into place."""
-    job = Job.objects.select_related("media_file__library__profile").get(pk=job_id)
-    media_file = job.media_file
-    profile = media_file.library.profile
-    worker = _register_worker(context)
-
-    if job.state == JobState.CANCELLED:
-        return {"skipped": "cancelled before start"}
-
-    source = Path(media_file.path)
-    if not source.exists():
-        MediaFile.objects.filter(pk=media_file.pk).update(status=FileStatus.MISSING)
-        _fail_job(job, "Source file is gone")
-        return {"error": "missing"}
-
-    cache_dir = Path(settings.TRANSCODE_CACHE_DIR)
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    destination = cache_dir / f"job{job.pk}-{source.stem[:80]}.{profile.container}"
-
-    try:
-        probe_data = ffmpeg.probe(source)
-    except ffmpeg.ProbeError as exc:
-        _fail_job(job, str(exc))
-        return {"error": "probe_failed"}
-
-    command = ffmpeg.build_command(profile, source, destination, probe_data)
-
-    Job.objects.filter(pk=job.pk).update(
-        state=JobState.RUNNING,
-        started_at=timezone.now(),
-        worker=worker,
-        attempt=context.attempt,
-        task_result_id=context.task_result.id,
-        command=" ".join(command),
-        size_before=media_file.size_bytes,
-        progress=0.0,
-    )
-    MediaFile.objects.filter(pk=media_file.pk).update(status=FileStatus.TRANSCODING)
-
-    last_write = 0.0
-
-    def on_progress(progress: ffmpeg.Progress) -> None:
-        """Throttled write-back — the UI polls this row every two seconds."""
-        nonlocal last_write
-        now = time.monotonic()
-        if now - last_write < settings.PROGRESS_INTERVAL_SECONDS:
-            return
-        last_write = now
-        Job.objects.filter(pk=job.pk).update(
-            progress=progress.percent,
-            fps=progress.fps,
-            speed=progress.speed,
-            eta_seconds=progress.eta_seconds,
-        )
-
-    def should_cancel() -> bool:
-        state = Job.objects.filter(pk=job.pk).values_list("state", flat=True).first()
-        return state in {JobState.CANCELLING, JobState.CANCELLED}
-
-    try:
-        result = ffmpeg.run(
-            command,
-            duration_seconds=probe_data.duration_seconds,
-            on_progress=on_progress,
-            should_cancel=should_cancel,
-        )
-    except ffmpeg.Cancelled:
-        destination.unlink(missing_ok=True)
-        _finish_job(job, JobState.CANCELLED, log="Cancelled by operator")
-        MediaFile.objects.filter(pk=media_file.pk).update(status=FileStatus.SKIPPED)
-        return {"cancelled": True}
-    except ffmpeg.TranscodeError as exc:
-        destination.unlink(missing_ok=True)
-        MediaFile.objects.filter(pk=media_file.pk).update(
-            status=FileStatus.ERROR, last_error=str(exc)[:2000]
-        )
-        _fail_job(job, str(exc))
-        raise  # let the Tasks backend record the failure and apply its retry policy
-
-    new_size = destination.stat().st_size
-    ratio = new_size / max(media_file.size_bytes, 1)
-    if ratio > settings.MAX_OUTPUT_SIZE_RATIO:
-        destination.unlink(missing_ok=True)
-        job.append_log(
-            f"Output was {ratio:.0%} of the original — keeping the source file untouched."
-        )
-        MediaFile.objects.filter(pk=media_file.pk).update(
-            status=FileStatus.SKIPPED,
-            verdict=Verdict.MEETS_TARGET,
-            verdict_reason="Re-encode produced a larger file",
-        )
-        _finish_job(
-            job, JobState.SUCCEEDED, progress=100.0, size_after=media_file.size_bytes
-        )
-        return {"kept_original": True, "ratio": round(ratio, 3)}
-
-    final_path = source.with_suffix(f".{profile.container}")
-    shutil.move(str(destination), str(final_path))
-    if final_path != source:
-        source.unlink(missing_ok=True)
-
-    original = media_file.original_size_bytes or media_file.size_bytes
-    MediaFile.objects.filter(pk=media_file.pk).update(
-        path=str(final_path),
-        rel_path=str(final_path.relative_to(Path(media_file.library.path))),
-        size_bytes=new_size,
-        original_size_bytes=original,
-        status=FileStatus.TRANSCODED,
-        verdict=Verdict.MEETS_TARGET,
-        verdict_reason=f"Transcoded to {profile.video_codec}",
-        container=profile.container,
-        video_codec=profile.video_codec,
-        last_error="",
-    )
-    if worker:
-        Worker.objects.filter(pk=worker.pk).update(
-            jobs_completed=worker.jobs_completed + 1
-        )
-
-    saved = media_file.size_bytes - new_size
-    job.append_log(
-        f"Done. {_human(media_file.size_bytes)} → {_human(new_size)} ({_human(saved)} saved)"
-    )
-    for line in result.log_tail[-5:]:
-        job.append_log(line)
-    _finish_job(job, JobState.SUCCEEDED, progress=100.0, size_after=new_size)
-    return {"saved_bytes": saved, "size_after": new_size}
+#
+# @task(queue_name="transcode", takes_context=True)
+# def run_transcode(context, job_id: int) -> dict:
+#     """Encode one file to the cache directory, then swap it into place."""
+#     job = Job.objects.select_related("media_file__library__profile").get(pk=job_id)
+#     media_file = job.media_file
+#     profile = media_file.library.profile
+#     worker = _register_worker(context)
+#
+#     if job.state == JobState.CANCELLED:
+#         return {"skipped": "cancelled before start"}
+#
+#     source = Path(media_file.path)
+#     if not source.exists():
+#         MediaFile.objects.filter(pk=media_file.pk).update(status=FileStatus.MISSING)
+#         _fail_job(job, "Source file is gone")
+#         return {"error": "missing"}
+#
+#     cache_dir = Path(settings.TRANSCODE_CACHE_DIR)
+#     cache_dir.mkdir(parents=True, exist_ok=True)
+#     destination = cache_dir / f"job{job.pk}-{source.stem[:80]}.{profile.container}"
+#
+#     try:
+#         probe_data = ffmpeg.probe(source)
+#     except ffmpeg.ProbeError as exc:
+#         _fail_job(job, str(exc))
+#         return {"error": "probe_failed"}
+#
+#     command = ffmpeg.build_command(profile, source, destination, probe_data)
+#
+#     Job.objects.filter(pk=job.pk).update(
+#         state=JobState.RUNNING,
+#         started_at=timezone.now(),
+#         worker=worker,
+#         attempt=context.attempt,
+#         task_result_id=context.task_result.id,
+#         command=" ".join(command),
+#         size_before=media_file.size_bytes,
+#         progress=0.0,
+#     )
+#     MediaFile.objects.filter(pk=media_file.pk).update(status=FileStatus.TRANSCODING)
+#
+#     last_write = 0.0
+#
+#     def on_progress(progress: ffmpeg.Progress) -> None:
+#         """Throttled write-back — the UI polls this row every two seconds."""
+#         nonlocal last_write
+#         now = time.monotonic()
+#         if now - last_write < settings.PROGRESS_INTERVAL_SECONDS:
+#             return
+#         last_write = now
+#         Job.objects.filter(pk=job.pk).update(
+#             progress=progress.percent,
+#             fps=progress.fps,
+#             speed=progress.speed,
+#             eta_seconds=progress.eta_seconds,
+#         )
+#
+#     def should_cancel() -> bool:
+#         state = Job.objects.filter(pk=job.pk).values_list("state", flat=True).first()
+#         return state in {JobState.CANCELLING, JobState.CANCELLED}
+#
+#     try:
+#         result = ffmpeg.run(
+#             command,
+#             duration_seconds=probe_data.duration_seconds,
+#             on_progress=on_progress,
+#             should_cancel=should_cancel,
+#         )
+#     except ffmpeg.Cancelled:
+#         destination.unlink(missing_ok=True)
+#         _finish_job(job, JobState.CANCELLED, log="Cancelled by operator")
+#         MediaFile.objects.filter(pk=media_file.pk).update(status=FileStatus.SKIPPED)
+#         return {"cancelled": True}
+#     except ffmpeg.TranscodeError as exc:
+#         destination.unlink(missing_ok=True)
+#         MediaFile.objects.filter(pk=media_file.pk).update(
+#             status=FileStatus.ERROR, last_error=str(exc)[:2000]
+#         )
+#         _fail_job(job, str(exc))
+#         raise  # let the Tasks backend record the failure and apply its retry policy
+#
+#     new_size = destination.stat().st_size
+#     ratio = new_size / max(media_file.size_bytes, 1)
+#     if ratio > settings.MAX_OUTPUT_SIZE_RATIO:
+#         destination.unlink(missing_ok=True)
+#         job.append_log(
+#             f"Output was {ratio:.0%} of the original — keeping the source file untouched."
+#         )
+#         MediaFile.objects.filter(pk=media_file.pk).update(
+#             status=FileStatus.SKIPPED,
+#             verdict=Verdict.MEETS_TARGET,
+#             verdict_reason="Re-encode produced a larger file",
+#         )
+#         _finish_job(
+#             job, JobState.SUCCEEDED, progress=100.0, size_after=media_file.size_bytes
+#         )
+#         return {"kept_original": True, "ratio": round(ratio, 3)}
+#
+#     final_path = source.with_suffix(f".{profile.container}")
+#     shutil.move(str(destination), str(final_path))
+#     if final_path != source:
+#         source.unlink(missing_ok=True)
+#
+#     original = media_file.original_size_bytes or media_file.size_bytes
+#     MediaFile.objects.filter(pk=media_file.pk).update(
+#         path=str(final_path),
+#         rel_path=str(final_path.relative_to(Path(media_file.library.path))),
+#         size_bytes=new_size,
+#         original_size_bytes=original,
+#         status=FileStatus.TRANSCODED,
+#         verdict=Verdict.MEETS_TARGET,
+#         verdict_reason=f"Transcoded to {profile.video_codec}",
+#         container=profile.container,
+#         video_codec=profile.video_codec,
+#         last_error="",
+#     )
+#     if worker:
+#         Worker.objects.filter(pk=worker.pk).update(
+#             jobs_completed=worker.jobs_completed + 1
+#         )
+#
+#     saved = media_file.size_bytes - new_size
+#     job.append_log(
+#         f"Done. {_human(media_file.size_bytes)} → {_human(new_size)} ({_human(saved)} saved)"
+#     )
+#     for line in result.log_tail[-5:]:
+#         job.append_log(line)
+#     _finish_job(job, JobState.SUCCEEDED, progress=100.0, size_after=new_size)
+#     return {"saved_bytes": saved, "size_after": new_size}
 
 
 @task(queue_name="default")
@@ -494,3 +494,131 @@ def _human(num: int) -> str:
             return f"{value:.1f} {unit}"
         value /= 1024
     return f"{value:.1f} TB"
+
+
+
+
+def build_stream(profile, source: Path, destination: Path, probe_data=None):
+    """Build the ffmpeg-python stream graph for one file."""
+
+    input_kwargs = {}
+    if profile.hw_accel == "nvenc":
+        input_kwargs["hwaccel"] = "cuda"
+    elif profile.hw_accel == "qsv":
+        input_kwargs["hwaccel"] = "qsv"
+    elif profile.hw_accel == "vaapi":
+        input_kwargs["hwaccel"] = "vaapi"
+        input_kwargs["hwaccel_output_format"] = "vaapi"
+
+    stream = ffmpeg.input(str(source), **input_kwargs)
+
+    if profile.max_height and probe_data and probe_data.height and probe_data.height > profile.max_height:
+        scaler = "scale_vaapi" if profile.hw_accel == "vaapi" else "scale"
+        stream = stream.filter(scaler, -2, profile.max_height)
+
+    output_kwargs = {"map": "0", "c": "copy", "c:v": encoder}
+
+    if encoder.startswith(("libx26", "libsvt")):
+        output_kwargs["crf"] = profile.quality
+        output_kwargs["preset"] = profile.preset
+    elif encoder.endswith("_nvenc"):
+        output_kwargs["rc"] = "vbr"
+        output_kwargs["cq"] = profile.quality
+        output_kwargs["preset"] = "p5"
+    elif encoder.endswith("_qsv"):
+        output_kwargs["global_quality"] = profile.quality
+        output_kwargs["preset"] = profile.preset
+    elif encoder.endswith("_vaapi"):
+        output_kwargs["rc_mode"] = "CQP"
+        output_kwargs["qp"] = profile.quality
+
+    if profile.audio_codec and profile.audio_codec != "copy":
+        output_kwargs["c:a"] = profile.audio_codec
+
+    stream = stream.output(str(destination), **output_kwargs)
+
+    if profile.extra_args:
+        stream = stream.global_args(*shlex.split(profile.extra_args))
+
+    return stream.global_args("-hide_banner", "-nostdin").overwrite_output()
+
+
+# @task(queue_name="transcode", takes_context=True)
+# def run_transcode(context, job_id: int) -> dict:
+#     """Encode one file to the cache directory, then swap it into place."""
+#     job = Job.objects.select_related("media_file__library__profile").get(pk=job_id)
+#     media_file = job.media_file
+#     profile = media_file.library.profile
+#     worker = _register_worker(context)
+#
+#     if job.state == JobState.CANCELLED:
+#         return {"skipped": "cancelled before start"}
+#
+#     source = Path(media_file.path)
+#     if not source.exists():
+#         MediaFile.objects.filter(pk=media_file.pk).update(status=FileStatus.MISSING)
+#         _fail_job(job, "Source file is gone")
+#         return {"error": "missing"}
+#
+#     cache_dir = Path(settings.TRANSCODE_CACHE_DIR)
+#     cache_dir.mkdir(parents=True, exist_ok=True)
+#     destination = cache_dir / f"job{job.pk}-{source.stem[:80]}.{profile.container}"
+#
+#     try:
+#         probe_data = ffmpeg.probe(source)
+#     except ffmpeg.ProbeError as exc:
+#         _fail_job(job, str(exc))
+#         return {"error": "probe_failed"}
+#
+#     command = ffmpeg.build_command(profile, source, destination, probe_data)
+
+# def run_transcode(profile, source: Path, destination: Path, probe_data, should_cancel=None, on_progress=None):
+@task(queue_name="transcode", takes_context=True)
+def run_transcode(context, job_id: int) -> dict:
+    """Run the transcode, polling stderr for progress until it exits."""
+    job = Job.objects.select_related("media_file__library__profile").get(pk=job_id)
+    media_file = job.media_file
+    profile = media_file.library.profile
+    cache_dir = Path(settings.TRANSCODE_CACHE_DIR)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    destination = cache_dir / f"job{job.pk}-{media_file.stem[:80]}.{profile.container}"
+
+#     Job.objects.filter(pk=job.pk).update(
+#         state=JobState.RUNNING,
+#         started_at=timezone.now(),
+#         worker=worker,
+#         attempt=context.attempt,
+#         task_result_id=context.task_result.id,
+#         command=" ".join(command),
+#         size_before=media_file.size_bytes,
+#         progress=0.0,
+#     )
+    try:
+        (ffmpeg
+         .input(media_file)
+         .output(destination)
+         .overwrite_output()
+         .run(capture_stdout=True, capture_stderr=True)
+         # .global_args('-progress', 'unix://{}'.format(socket_filename))
+         )
+    except ffmpeg.Error as e:
+        print(e.stderr, file=sys.stderr)
+        sys.exit(1)
+
+    stderr_lines = []
+    try:
+        while process.poll() is None:
+            if should_cancel and should_cancel():
+                process.terminate()
+                process.wait()
+                raise RuntimeError("Cancelled")
+            time.sleep(0.5)
+    finally:
+        _, stderr = process.communicate()
+        if stderr:
+            stderr_lines = stderr.decode(errors="replace").splitlines()
+
+    if process.returncode != 0:
+        raise RuntimeError("\n".join(stderr_lines[-20:]))
+
+    return stderr_lines

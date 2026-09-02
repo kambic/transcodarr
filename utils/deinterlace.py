@@ -1,127 +1,299 @@
+import asyncio
+import json
+import os
+import re
+import socket
+import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional
 import ffmpeg
 
 
-class InterlacedTranscoder:
-    """Probes video metadata and encodes media into interlaced H.265 or MPEG-2 TS."""
+class StreamInspector:
+    """Analyzes output stream quality relative to the input reference stream."""
 
-    def __init__(self, input_path: str | Path):
+    def __init__(self, reference_path: str | Path, target_path: str | Path):
+        self.ref_path = Path(reference_path).resolve()
+        self.target_path = Path(target_path).resolve()
+
+        if not self.ref_path.exists() or not self.target_path.exists():
+            raise FileNotFoundError("Reference or target file does not exist.")
+
+    def compute_ssim(self) -> float:
+        """Calculates mean SSIM score between reference and target stream."""
+        ref = ffmpeg.input(str(self.ref_path))
+        target = ffmpeg.input(str(self.target_path))
+
+        # Run SSIM filter via ffmpeg null sink
+        out = ffmpeg.filter([ref.video, target.video], "ssim")
+        output = ffmpeg.output(out, "-", f="null")
+
+        _, stderr = ffmpeg.run(output, capture_stdout=True, capture_stderr=True)
+        log = stderr.decode("utf-8")
+
+        # Parse SSIM All mean score (e.g., SSIM All:0.941234)
+        match = re.search(r"All:(\d+\.\d+)", log)
+        if match:
+            return float(match.group(1))
+        raise RuntimeError("Failed to parse SSIM metrics from ffmpeg log.")
+
+    def compute_vmaf(self, model_path: Optional[str] = None) -> float:
+        """Calculates VMAF score (0-100) between reference and target stream."""
+        ref = ffmpeg.input(str(self.ref_path))
+        target = ffmpeg.input(str(self.target_path))
+
+        vmaf_args = ""
+        if model_path:
+            vmaf_args = f":model_path={model_path}"
+
+        out = ffmpeg.filter([target.video, ref.video], "libvmaf", vmaf_args)
+        output = ffmpeg.output(out, "-", f="null")
+
+        _, stderr = ffmpeg.run(output, capture_stdout=True, capture_stderr=True)
+        log = stderr.decode("utf-8")
+
+        match = re.search(r"VMAF score:\s*(\d+\.\d+)", log)
+        if match:
+            return float(match.group(1))
+        raise RuntimeError("Failed to parse VMAF metric from ffmpeg log.")
+
+    def inspect_quality(
+        self, ssim_threshold: float = 0.85, vmaf_threshold: float = 70.0
+    ) -> Dict[str, Any]:
+        """Evaluates output stream degradation against configurable threshold limits."""
+        ssim_score = self.compute_ssim()
+
+        # Check for heavy quality loss / pixelation
+        pixelated = ssim_score < ssim_threshold
+
+        report = {
+            "ssim": ssim_score,
+            "pixelated_or_degraded": pixelated,
+            "status": "PASS" if not pixelated else "WARNING",
+        }
+
+        if pixelated:
+            print(
+                f"\n[WARNING] Quality degradation detected! Output SSIM ({ssim_score:.4f}) "
+                f"is below threshold ({ssim_threshold}). Video may appear pixelated or degraded.\n"
+                f"Consider lowering CRF/QP or increasing target bitrate."
+            )
+
+        return report
+
+
+class InterlacedTranscoder:
+    """Asynchronous video transcoder supporting progressive, interlaced, and VAAPI modes."""
+
+    def __init__(
+        self, input_path: str | Path, vaapi_device: str = "/dev/dri/renderD128"
+    ):
         self.input_path = Path(input_path).resolve()
+        self.vaapi_device = vaapi_device
         if not self.input_path.exists():
             raise FileNotFoundError(f"Input file not found: {self.input_path}")
-        self._metadata: Optional[Dict[str, Any]] = None
 
     def probe(self) -> Dict[str, Any]:
-        """Extracts stream metadata using ffprobe."""
-        if self._metadata is None:
-            self._metadata = ffmpeg.probe(str(self.input_path))
-        return self._metadata
+        """Runs ffprobe on the input media file."""
+        return ffmpeg.probe(str(self.input_path))
 
-    def get_video_stream_info(self) -> Dict[str, Any]:
-        """Returns the primary video stream metadata dictionary."""
+    def get_duration(self) -> float:
+        """Extracts total duration in seconds."""
         meta = self.probe()
-        video_streams = [
-            s for s in meta.get("streams", []) if s.get("codec_type") == "video"
-        ]
-        if not video_streams:
-            raise ValueError("No video stream found in the media file.")
-        return video_streams[0]
+        format_info = meta.get("format", {})
+        return float(format_info.get("duration", 0.0))
 
-    def get_field_order(self) -> str:
-        """Determines if video is interlaced ('tt', 'bb', 'tb', 'bt') or progressive ('progressive')."""
-        info = self.get_video_stream_info()
-        return info.get("field_order", "unknown")
+    async def _run_with_progress(
+        self,
+        output_stream: Any,
+        progress_callback: Optional[Callable[[float], None]] = None,
+    ) -> None:
+        """Executes FFmpeg asynchronously while parsing progress via a UNIX domain socket."""
+        total_duration = self.get_duration()
 
-    def transcode_h265_interlaced(
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sock_path = os.path.join(tmp_dir, "ffmpeg_progress.sock")
+
+            server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            server.bind(sock_path)
+            server.listen(1)
+            server.setblocking(False)
+
+            # Pass progress socket URL to FFmpeg stream
+            output_stream = ffmpeg.global_args(
+                output_stream, "-progress", f"unix://{sock_path}"
+            )
+            args = ffmpeg.compile(output_stream.overwrite_output())
+
+            # Spawn ffmpeg process
+            proc = await asyncio.create_subprocess_exec(
+                args[0],
+                *args[1:],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+
+            # Accept connection from FFmpeg progress socket
+            loop = asyncio.get_running_loop()
+            conn, _ = await loop.sock_accept(server)
+            conn.setblocking(False)
+
+            buffer = ""
+            while True:
+                try:
+                    data = await loop.sock_recv(conn, 1024)
+                    if not data:
+                        break
+                    buffer += data.decode("utf-8")
+
+                    lines = buffer.split("\n")
+                    buffer = lines.pop()  # Preserve incomplete tail line
+
+                    for line in lines:
+                        if "out_time_ms=" in line:
+                            val = line.split("=")[1].strip()
+                            if val.isdigit():
+                                current_sec = float(val) / 1000000.0
+                                if total_duration > 0 and progress_callback:
+                                    pct = min(
+                                        100.0, (current_sec / total_duration) * 100.0
+                                    )
+                                    progress_callback(pct)
+                except Exception:
+                    break
+
+            await proc.wait()
+            conn.close()
+            server.close()
+
+            if proc.returncode != 0:
+                _, stderr = await proc.communicate()
+                raise RuntimeError(
+                    f"FFmpeg execution failed with code {proc.returncode}:\n{stderr.decode('utf-8')}"
+                )
+
+    # --- Encoding Pipelines ---
+
+    async def transcode_progressive(
         self,
         output_path: str | Path,
-        tff: bool = True,
-        preset: str = "medium",
+        vcodec: str = "libx265",
         crf: int = 23,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
-        """Encodes stream to Interlaced H.265/HEVC (MP4 container)."""
-        output_path = str(output_path)
-        field_flag = "tff" if tff else "bff"
-        top_val = 1 if tff else 0
-
+        """Encodes progressive output stream using software encoders."""
         stream = ffmpeg.input(str(self.input_path))
-
-        # Build output graph with x265 interlaced parameters
-        output = ffmpeg.output(
+        out = ffmpeg.output(
             stream.video,
             stream.audio,
-            output_path,
-            vcodec="libx265",
+            str(output_path),
+            vcodec=vcodec,
             acodec="copy",
-            pix_fmt="yuv420p",
-            preset=preset,
             crf=crf,
-            top=top_val,
-            **{"x265-params": f"interlaced={field_flag}:fields=1"},
+            pix_fmt="yuv420p",
         )
+        await self._run_with_progress(out, progress_callback)
 
-        ffmpeg.run(output.overwrite_output(), capture_stdout=True, capture_stderr=True)
-
-    def transcode_mpeg2_ts_interlaced(
+    async def transcode_interlaced(
         self,
         output_path: str | Path,
+        format_type: str = "mp4",  # 'mp4' or 'mpegts'
         tff: bool = True,
-        video_bitrate: str = "15M",
-        maxrate: str = "18M",
-        bufsize: str = "12M",
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> None:
-        """Encodes stream to Interlaced MPEG-2 Transport Stream (.ts)."""
-        output_path = str(output_path)
+        """Encodes interlaced output stream (HEVC/MP4 or MPEG-2 TS)."""
+        stream = ffmpeg.input(str(self.input_path))
         top_val = 1 if tff else 0
 
+        if format_type == "mp4":
+            field_flag = "tff" if tff else "bff"
+            out = ffmpeg.output(
+                stream.video,
+                stream.audio,
+                str(output_path),
+                vcodec="libx265",
+                acodec="copy",
+                top=top_val,
+                pix_fmt="yuv420p",
+                **{"x265-params": f"interlaced={field_flag}:fields=1"},
+            )
+        elif format_type == "mpegts":
+            out = ffmpeg.output(
+                stream.video,
+                stream.audio,
+                str(output_path),
+                vcodec="mpeg2video",
+                acodec="mp2",
+                format="mpegts",
+                flags="+ilme+ildct",
+                top=top_val,
+                **{"b:v": "15M", "maxrate": "18M", "bufsize": "12M"},
+            )
+        else:
+            raise ValueError(f"Unsupported format type: {format_type}")
+
+        await self._run_with_progress(out, progress_callback)
+
+    async def transcode_vaapi_hw(
+        self,
+        output_path: str | Path,
+        codec: str = "hevc_vaapi",  # 'hevc_vaapi', 'h264_vaapi'
+        qp: int = 25,
+        progress_callback: Optional[Callable[[float], None]] = None,
+    ) -> None:
+        """Encodes output using Linux VAAPI hardware acceleration."""
         stream = ffmpeg.input(str(self.input_path))
 
-        output = ffmpeg.output(
-            stream.video,
-            stream.audio,
-            output_path,
-            vcodec="mpeg2video",
-            acodec="mp2",
-            format="mpegts",
-            flags="+ilme+ildct",
-            top=top_val,
-            **{
-                "b:v": video_bitrate,
-                "maxrate": maxrate,
-                "bufsize": bufsize,
-            },
+        # Construct hardware device pipeline and scale/upload filter graph
+        out = (
+            ffmpeg.output(
+                stream.video,
+                stream.audio,
+                str(output_path),
+                vcodec=codec,
+                acodec="copy",
+                qp=qp,
+                vf="format=nv12,hwupload",
+            )
+            .global_args("-vaapi_device", self.vaapi_device)
+            .global_args("-filter_hw_device", self.vaapi_device)
         )
 
-        ffmpeg.run(output.overwrite_output(), capture_stdout=True, capture_stderr=True)
+        await self._run_with_progress(out, progress_callback)
 
 
-# --- Example Usage ---
+# --- Example Execution Pipeline ---
+async def main():
+    input_file = "crew_1080i.y4m"
+    progressive_out = "crew_progressive.mp4"
+    vaapi_out = "crew_vaapi.mp4"
+
+    def print_progress(percent: float):
+        print(f"\rEncoding Progress: {percent:.2f}%", end="", flush=True)
+
+    transcoder = InterlacedTranscoder(input_file)
+
+    # 1. Progressive Encoding with Async Progress Bar
+    print("=== Starting Async Progressive Transcode ===")
+    await transcoder.transcode_progressive(
+        progressive_out, crf=22, progress_callback=print_progress
+    )
+    print("\nEncoding complete.\n")
+
+    # 2. Inspecting Quality with StreamInspector
+    print("=== Inspecting Progressive Stream Quality ===")
+    inspector = StreamInspector(reference_path=input_file, target_path=progressive_out)
+    report = inspector.inspect_quality(ssim_threshold=0.88)
+    print(f"Inspection Result: {report}")
+
+    # 3. VAAPI Hardware Transcode
+    if Path("/dev/dri/renderD128").exists():
+        print("\n=== Starting VAAPI HW Accelerated Transcode ===")
+        await transcoder.transcode_vaapi_hw(
+            vaapi_out, qp=28, progress_callback=print_progress
+        )
+        print("\nVAAPI Encoding complete.\n")
+
+
 if __name__ == "__main__":
-    sample_file = "crew_1080i.y4m"
-
-    try:
-        transcoder = InterlacedTranscoder(sample_file)
-
-        # 1. Probe video parameters
-        video_info = transcoder.get_video_stream_info()
-        print(f"Codec: {video_info.get('codec_name')}")
-        print(f"Resolution: {video_info.get('width')}x{video_info.get('height')}")
-        print(f"Field Order: {transcoder.get_field_order()}")
-
-        # 2. Transcode to Interlaced H.265
-        print("Transcoding to H.265 Interlaced...")
-        transcoder.transcode_h265_interlaced(
-            output_path="crew_h265_1080i.mp4", tff=True
-        )
-
-        # 3. Transcode to Interlaced MPEG-2 TS
-        print("Transcoding to MPEG-2 TS Interlaced...")
-        transcoder.transcode_mpeg2_ts_interlaced(
-            output_path="crew_mpeg2_1080i.ts", tff=True
-        )
-
-        print("Transcoding finished successfully.")
-
-    except Exception as e:
-        print(f"Error: {e}")
+    asyncio.run(main())
