@@ -7,6 +7,13 @@ from django.db import models
 from django.urls import reverse
 from django.utils import timezone
 
+class JobKind(models.TextChoices):
+    PROBE = "probe", "Probe"
+    TRANSCODE = "transcode", "Transcode"
+    FLOW = "flow", "Flow"
+    SCAN = "scan", "Scan"
+
+
 
 class Codec(models.TextChoices):
     H264 = "h264", "H.264 / AVC"
@@ -162,8 +169,8 @@ class Library(models.Model):
     @property
     def is_scanning(self) -> bool:
         return bool(self.last_scan_started_at) and (
-            self.last_scan_finished_at is None
-            or self.last_scan_finished_at < self.last_scan_started_at
+                self.last_scan_finished_at is None
+                or self.last_scan_finished_at < self.last_scan_started_at
         )
 
     @property
@@ -202,14 +209,28 @@ class MediaFileQuerySet(models.QuerySet):
     def savings(self):
         """Bytes reclaimed by every file this pipeline has already rewritten."""
         return (
-            self.filter(original_size_bytes__gt=0).aggregate(
-                saved=models.Sum(
-                    models.F("original_size_bytes") - models.F("size_bytes"),
-                    output_field=models.BigIntegerField(),
-                )
-            )["saved"]
-            or 0
+                self.filter(original_size_bytes__gt=0).aggregate(
+                    saved=models.Sum(
+                        models.F("original_size_bytes") - models.F("size_bytes"),
+                        output_field=models.BigIntegerField(),
+                    )
+                )["saved"]
+                or 0
         )
+
+
+def def_meta():
+    return {
+        "probe": {},
+        "ca": "",
+        "cv": "",
+        "height": "",
+        "width": "",
+        "duration": "",
+        "bitrate": "",
+        "size": "",
+
+    }
 
 
 class MediaFile(models.Model):
@@ -226,20 +247,24 @@ class MediaFile(models.Model):
     verdict = models.CharField(max_length=20, choices=Verdict, default=Verdict.UNKNOWN)
     verdict_reason = models.CharField(max_length=300, blank=True)
 
-    container = models.CharField(max_length=20, blank=True)
+    # container = models.CharField(max_length=20, blank=True)
     video_codec = models.CharField(max_length=30, blank=True)
-    audio_codec = models.CharField(max_length=30, blank=True)
-    width = models.PositiveIntegerField(null=True, blank=True)
-    height = models.PositiveIntegerField(null=True, blank=True)
-    duration_seconds = models.FloatField(null=True, blank=True)
-    bitrate_kbps = models.PositiveIntegerField(null=True, blank=True)
+    # audio_codec = models.CharField(max_length=30, blank=True)
+    # width = models.PositiveIntegerField(null=True, blank=True)
+    # height = models.PositiveIntegerField(null=True, blank=True)
+    # duration_seconds = models.FloatField(null=True, blank=True)
+    # bitrate_kbps = models.PositiveIntegerField(null=True, blank=True)
 
     last_probed_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    meta = models.JSONField(default=def_meta, null=False, blank=True)
+
     objects = MediaFileQuerySet.as_manager()
+
+    kinds = JobKind
 
     class Meta:
         ordering = ["rel_path"]
@@ -252,6 +277,53 @@ class MediaFile(models.Model):
     def __str__(self) -> str:
         return self.rel_path
 
+    def enqueue_task(self, kind: JobKind ):
+        from pipeline import tasks
+        if kind == JobKind.PROBE:
+            tasks.probe_file.enqueue(self.pk)
+
+    @property
+    def video_codec_d(self):
+        try:
+            return self.meta["probe"]["video_codec"]
+        except KeyError:
+            return None
+
+    @property
+    def audio_codec(self):
+        try:
+            return self.meta["probe"]["audio_codec"]
+        except KeyError:
+            return None
+
+    @property
+    def width(self):
+        try:
+            return self.meta["probe"]["width"]
+        except KeyError:
+            return None
+
+    @property
+    def height(self):
+        try:
+            return self.meta["probe"]["height"]
+        except KeyError:
+            return None
+
+    @property
+    def duration_seconds(self):
+        try:
+            return self.meta["probe"]["duration"]
+        except KeyError:
+            return None
+
+    @property
+    def bitrate_kbps(self):
+        try:
+            return self.meta["probe"]["bitrate"]
+        except KeyError:
+            return None
+
     def get_absolute_url(self) -> str:
         return reverse("pipeline:file_detail", args=[self.pk])
 
@@ -260,10 +332,10 @@ class MediaFile(models.Model):
         if not self.height:
             return "—"
         for threshold, label in (
-            (2000, "4K"),
-            (1000, "1080p"),
-            (700, "720p"),
-            (400, "480p"),
+                (2000, "4K"),
+                (1000, "1080p"),
+                (700, "720p"),
+                (400, "480p"),
         ):
             if self.height >= threshold:
                 return label
@@ -314,12 +386,6 @@ class Worker(models.Model):
         cutoff = timezone.now() - timedelta(seconds=settings.WORKER_OFFLINE_AFTER)
         return self.last_heartbeat >= cutoff
 
-
-class JobKind(models.TextChoices):
-    PROBE = "probe", "Probe"
-    TRANSCODE = "transcode", "Transcode"
-    FLOW = "flow", "Flow"
-    SCAN = "scan", "Scan"
 
 
 class JobState(models.TextChoices):

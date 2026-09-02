@@ -56,7 +56,7 @@ def _dashboard_context() -> dict:
         total_size=Sum("size_bytes"),
     )
     codec_rows = (
-        files.exclude(video_codec="")
+        files
         .values("video_codec")
         .annotate(count=Count("id"), size=Sum("size_bytes"))
         .order_by("-count")[:6]
@@ -373,9 +373,12 @@ def file_detail(request, pk: int):
 @require_POST
 def file_probe(request, pk: int):
     media_file = get_object_or_404(MediaFile, pk=pk)
-    probe_file.enqueue(media_file.pk)
+    media_file.enqueue_task(media_file.kinds.PROBE)
     MediaFile.objects.filter(pk=pk).update(status=FileStatus.PROBING)
-    return _file_row_response(request, pk)
+
+    return render(request, "pages/file_detail.html#file-body", {"file": media_file})
+
+    # return _file_row_response(request, pk)
 
 
 @require_POST

@@ -6,3 +6,4 @@ cache/
 staticfiles/
 .env
 .venv/
+/db.sqlite32

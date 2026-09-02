@@ -14,7 +14,7 @@ from pathlib import Path
 
 from django.conf import settings
 
-from .. import ffmpeg
+import ffmpeg
 from .registry import Condition, Field, Node, Output, register
 
 CODEC_CHOICES = [

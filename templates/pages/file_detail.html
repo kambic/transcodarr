@@ -5,7 +5,7 @@
 {% block content %}
 {% partialdef file-body inline %}
 {# Same markup for the full page and the modal — the view picks which one to render. #}
-<div class="bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
+<div id="file-{{ file.pk }}" class="bg-white border border-gray-200 rounded-lg shadow-sm dark:bg-gray-800 dark:border-gray-700">
   <div class="flex items-start justify-between gap-4 p-5 border-b border-gray-200 dark:border-gray-700">
     <div class="min-w-0">
       <h2 class="text-lg font-semibold break-words text-gray-900 dark:text-white">{{ file.rel_path|basename }}</h2>
@@ -67,8 +67,8 @@
     {% endif %}
   </div>
 
-  <div class="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-700">
-    <button hx-post="{% url 'pipeline:file_probe' file.pk %}" hx-target="#file-{{ file.pk }}" hx-swap="outerHTML"
+  <div    class="flex justify-end gap-2 px-5 py-4 border-t border-gray-200 dark:border-gray-700">
+    <button   hx-post="{% url 'pipeline:file_probe' file.pk %}" hx-target="#file-{{ file.pk }}" hx-swap="outerHTML"
             class="px-4 py-2 text-sm font-medium text-gray-900 bg-white border border-gray-200 rounded-lg hover:bg-gray-100 dark:bg-gray-700 dark:text-white dark:border-gray-600 dark:hover:bg-gray-600">
       Re-probe
     </button>

@@ -28,8 +28,8 @@ from django.conf import settings
 from django.db import transaction
 from django.tasks import task
 from django.utils import timezone
-
-from . import ffmpeg, rules
+from pipeline import rules
+import ffmpeg
 from .models import (
     FileStatus,
     Job,
@@ -68,27 +68,19 @@ def scan_library(context, library_id: int) -> dict:
     seen: set[str] = set()
     added = updated = 0
 
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-        for filename in filenames:
-            if filename.startswith("."):
-                continue
-            if filename.rsplit(".", 1)[-1].lower() not in wanted:
-                continue
+    files = root.glob("**/*")
 
-            full = Path(dirpath) / filename
-            try:
-                stat = full.stat()
-            except OSError:
-                continue
+    for file in files:
 
-            seen.add(str(full))
+            seen.add(str(file))
+            stat = file.stat()
+
             mtime = datetime.fromtimestamp(stat.st_mtime, tz=dt_timezone.utc)
             media_file, created = MediaFile.objects.get_or_create(
-                path=str(full),
+                path=str(file),
                 defaults={
                     "library": library,
-                    "rel_path": str(full.relative_to(root)),
+                    "rel_path": str(file.relative_to(root)),
                     "size_bytes": stat.st_size,
                     "original_size_bytes": stat.st_size,
                     "mtime": mtime,
@@ -168,21 +160,30 @@ def probe_file(context, media_file_id: int) -> str:
 
     try:
         data = ffmpeg.probe(media_file.path)
-    except ffmpeg.ProbeError as exc:
+        video = next((s for s in data['streams'] if s.get("codec_type") == "video"))
+        audio = list((s for s in data['streams'] if s.get("codec_type") == "audio"))
+
+        meta = {
+            "format": data.pop("format"),
+            "audio": audio,
+            "video": video,
+
+            "cv": video["codec_name"],
+            "ca": audio[0]["codec_name"] if audio else "",
+            "height": video["height"] if video.get("height") else "",
+            "width": video["width"] if video.get("width") else "",
+            "duration": video["duration"] if video.get("duration") else "",
+            "bitrate": video["bit_rate"] if video.get("bit_rate") else "",
+            "size": video["size"] if video.get("size") else "",
+        }
+    except ffmpeg.Error as exc:
         MediaFile.objects.filter(pk=media_file.pk).update(
             status=FileStatus.ERROR, verdict=Verdict.UNREADABLE, last_error=str(exc)
         )
         _fail_job(job, str(exc))
         return "unreadable"
 
-    media_file.container = data.container
-    media_file.video_codec = data.video_codec
-    media_file.audio_codec = data.audio_codec
-    media_file.width = data.width
-    media_file.height = data.height
-    media_file.duration_seconds = data.duration_seconds
-    media_file.bitrate_kbps = data.bitrate_kbps
-    media_file.size_bytes = data.size_bytes or media_file.size_bytes
+    media_file.meta.update(probe=meta)
     media_file.last_probed_at = timezone.now()
     media_file.last_error = ""
 
@@ -202,7 +203,7 @@ def probe_file(context, media_file_id: int) -> str:
     if trace:
         job.trace, job.flow = trace, flow
     job.append_log(
-        f"{data.video_codec or '?'} · {media_file.resolution_label} · {reason}"
+        f"{media_file.video_codec or '?'} · {media_file.resolution_label} · {reason}"
     )
     _finish_job(job, JobState.SUCCEEDED, progress=100.0)
 
@@ -444,7 +445,7 @@ def _open_job(context, *, kind, media_file=None, library=None) -> Job:
 
 
 def _finish_job(
-    job: Job, state, *, progress: float | None = None, size_after=None, log=None
+        job: Job, state, *, progress: float | None = None, size_after=None, log=None
 ) -> None:
     """Close a job with a targeted UPDATE.
 
