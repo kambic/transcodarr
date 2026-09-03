@@ -188,28 +188,17 @@ class InterlacedTranscoder:
         vcodec: str = "libx265",
         crf: int = 23,
     ) -> None:
-        stream = ffmpeg.input(str(self.input_path))
 
-        # 1. Collect present streams dynamically
-        streams = [stream.video]
-        if self._has_audio():
-            streams.append(stream.audio)
 
-        # 2. Unpack streams into output node
-        process = (
-            ffmpeg.output(
-                *streams,
-                str(output_path),
-                vcodec=vcodec,
-                acodec="copy" if self._has_audio() else None,
-                qp=crf,
-                # vf="format=nv12,hwupload",
-            ).run_async(pipe_stdout=True, pipe_stderr=True)
-            # .global_args("-vaapi_device", self.vaapi_device)
-            # .global_args("-filter_hw_device", self.vaapi_device)
-        )
-        out, err = await process.communicate()
-        print(f"\rEncoding s", end="", flush=True)
+
+
+        input = ffmpeg.input(self.input_path)
+        audio = input.audio.filter("aecho", 0.8, 0.9, 1000, 0.3)
+        video = input.video.hflip()
+        out = ffmpeg.output(audio, video, 'out.mp4')
+
+
+
 
         # await self._run_with_progress(process, progress_callback)
 
@@ -281,7 +270,7 @@ class InterlacedTranscoder:
 
 
 # --- Example Execution Pipeline ---
-async def main():
+def main():
     input_file = "/home/kamba/code/projects/transcodarr/lib/blender/crew_4cif.y4m"
     progressive_out = "crew_progressive.mp4"
     vaapi_out = "/home/kamba/code/projects/transcodarr/lib/output/crew_vaapi.mp4"
@@ -305,11 +294,12 @@ async def main():
     # 3. VAAPI Hardware Transcode
     if Path("/dev/dri/renderD128").exists():
         print("\n=== Starting VAAPI HW Accelerated Transcode ===")
-        await transcoder.transcode_vaapi_hw(
+        transcoder.transcode_vaapi_hw(
             vaapi_out, qp=28, progress_callback=print_progress
         )
         print("\nVAAPI Encoding complete.\n")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
+    #asyncio.run(main())
