@@ -2,7 +2,8 @@ from pathlib import Path
 
 from django import forms
 
-from .models import Library, TranscodeProfile
+from .models import TranscodeProfile
+from files.models import Library
 
 INPUT = (
     "bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg "

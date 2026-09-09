@@ -17,17 +17,14 @@ from pipeline.flows import engine
 from pipeline.models import (
     Container,
     Flow,
-    FileStatus,
     HWAccel,
     Job,
     JobKind,
     JobState,
-    Library,
-    MediaFile,
     TranscodeProfile,
-    Verdict,
     Worker,
 )
+from files.models import Library, FileStatus, Verdict, MediaFile
 
 SHOWS = [
     "Deep Field/Season 01/Deep Field - S01E{n:02d}",

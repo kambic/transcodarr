@@ -17,7 +17,8 @@ from django.views.decorators.http import require_POST
 
 from .flows import engine
 from .flows.registry import registry
-from .models import Flow, Library, MediaFile
+from .models import Flow
+from files.models import Library, MediaFile
 
 
 def flow_list(request):

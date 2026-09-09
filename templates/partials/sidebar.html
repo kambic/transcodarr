@@ -90,6 +90,22 @@
                 <span>Settings</span>
             </a>
         </div>
+          <div class="h-full px-3 pb-4 overflow-y-auto">
+      <ul class="space-y-1 font-medium">
+        {% url 'pipeline:dashboard' as u %}{% include 'partials/nav_item.html' with url=u label='Dashboard' icon='grid' %}
+        {% url 'pipeline:queue' as u %}{% include 'partials/nav_item.html' with url=u label='Queue' icon='play' count=nav_queue_count %}
+        {% url 'pipeline:file_list' as u %}{% include 'partials/nav_item.html' with url=u label='Files' icon='film' %}
+        {% url 'pipeline:library_list' as u %}{% include 'partials/nav_item.html' with url=u label='Libraries' icon='folder' %}
+        {% url 'pipeline:flow_list' as u %}{% include 'partials/nav_item.html' with url=u label='Flows' icon='flow' %}
+        {% url 'pipeline:profile_list' as u %}{% include 'partials/nav_item.html' with url=u label='Profiles' icon='sliders' %}
+        {% url 'pipeline:worker_list' as u %}{% include 'partials/nav_item.html' with url=u label='Workers' icon='cpu' %}
+      </ul>
+      <ul class="pt-4 mt-4 space-y-1 font-medium border-t border-gray-200 dark:border-gray-700">
+        {% url 'admin:index' as u %}{% include 'partials/nav_item.html' with url=u label='Django admin' icon='cog' %}
+      </ul>
+    </div>
+
+
     </nav>
 
     <div class="shrink-0 border-t border-gray-100 p-3">

@@ -13,14 +13,11 @@ from django.test import TestCase, override_settings
 from .models import (
     Container,
     Flow,
-    FileStatus,
     Job,
     JobState,
-    Library,
-    MediaFile,
     TranscodeProfile,
-    Verdict,
 )
+from files.models import Library, FileStatus, Verdict, MediaFile
 from .rules import evaluate
 
 IMMEDIATE = {

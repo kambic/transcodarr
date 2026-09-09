@@ -7,6 +7,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("files/", include("files.urls")),
     path("offers/", include("offers.urls")),
+    path("ex/", include("explorer.urls")),
+    path("tr/", include("transcode.urls")),
+    path("p/", include("pipeline.urls")),
     path("", include("dashboard.urls")),
-    # path("", include("pipeline.urls")),
 ]

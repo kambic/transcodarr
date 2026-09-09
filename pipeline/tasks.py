@@ -31,15 +31,12 @@ from django.utils import timezone
 from pipeline import rules
 import ffmpeg
 from .models import (
-    FileStatus,
     Job,
     JobKind,
     JobState,
-    Library,
-    MediaFile,
-    Verdict,
     Worker,
 )
+from files.models import Library, FileStatus, Verdict, MediaFile
 
 logger = logging.getLogger(__name__)
 

@@ -27,11 +27,14 @@ INSTALLED_APPS = [
     "pipeline",
     "files.apps.FilesConfig",
     "dashboard.apps.DashboardConfig",
-    "offers.apps.OffersConfig"
+    "offers.apps.OffersConfig",
+    "explorer.apps.ExplorerConfig",
+    "transcode.apps.TranscodeConfig",
 ]
 
 EXPLORER_ROOT = Path('/home/kamba/tmp')
-
+TRANSCODE = {}
+VAULT = { "QUOTA_BYTES" : 1_000_000 }
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -116,6 +119,9 @@ LANGUAGE_CODE = "en-us"
 TIME_ZONE = os.environ.get("TZ", "UTC")
 USE_I18N = True
 USE_TZ = True
+
+MEDIA_ROOT = 'media'
+MEDIA_URL = '/media/'
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"

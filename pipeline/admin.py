@@ -1,28 +1,12 @@
 from django.contrib import admin
 
-from .models import Flow, Job, Library, MediaFile, TranscodeProfile, Worker
+from .models import Flow, Job, TranscodeProfile, Worker
 
-
-@admin.register(Library)
-class LibraryAdmin(admin.ModelAdmin):
-    list_display = ["name", "path", "profile", "enabled", "last_scan_finished_at"]
-    list_filter = ["enabled", "profile"]
-    search_fields = ["name", "path"]
 
 
 @admin.register(TranscodeProfile)
 class TranscodeProfileAdmin(admin.ModelAdmin):
     list_display = ["name", "video_codec", "container", "quality", "hw_accel"]
-
-
-@admin.register(MediaFile)
-class MediaFileAdmin(admin.ModelAdmin):
-    list_display = ["rel_path", "library", "video_codec", "height", "status", "verdict"]
-    list_filter = ["status", "verdict", "library"]
-    search_fields = ["rel_path", "path"]
-    # Django 6.1: name the related fields instead of list_select_related = True.
-    list_select_related = ["library"]
-    readonly_fields = ["path", "rel_path", "size_bytes", "original_size_bytes"]
 
 
 @admin.register(Job)

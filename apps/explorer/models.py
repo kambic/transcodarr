@@ -87,7 +87,7 @@ class Node(models.Model):
         "self", null=True, blank=True, on_delete=models.CASCADE, related_name="children"
     )
     name = models.CharField(max_length=255)
-    kind = models.CharField(max_length=6, choices=Kind, default=Kind.FILE)
+    kind = models.CharField(max_length=6, choices=Kind.choices, default=Kind.FILE)
 
     size = models.BigIntegerField(default=0, help_text="Bytes. Always 0 for folders.")
     content_type = models.CharField(max_length=120, blank=True)

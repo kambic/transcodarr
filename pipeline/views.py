@@ -17,16 +17,13 @@ from django.views.decorators.http import require_POST
 
 from .forms import LibraryForm, ProfileForm
 from .models import (
-    FileStatus,
     Job,
     JobKind,
     JobState,
-    Library,
-    MediaFile,
     TranscodeProfile,
-    Verdict,
     Worker,
 )
+from files.models import Library, FileStatus, Verdict, MediaFile
 from .tasks import probe_file, queue_transcode, run_transcode, scan_library
 
 

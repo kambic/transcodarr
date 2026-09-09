@@ -17,7 +17,8 @@ from django.tasks import task
 from django.utils import timezone
 
 from .flows import engine
-from .models import FileStatus, Flow, Job, JobKind, JobState, MediaFile, Verdict
+from .models import Flow, Job, JobKind, JobState
+from files.models import FileStatus, Verdict, MediaFile
 
 logger = logging.getLogger(__name__)
 
