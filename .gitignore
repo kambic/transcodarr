@@ -11,3 +11,4 @@ staticfiles/
 /data/
 /lib/
 node_modules/
+media
