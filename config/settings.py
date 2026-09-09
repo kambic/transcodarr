@@ -25,8 +25,12 @@ INSTALLED_APPS = [
     "django_htmx",
     # Local
     "pipeline",
-    "files.apps.FilesConfig"
+    "files.apps.FilesConfig",
+    "dashboard.apps.DashboardConfig",
+    "offers.apps.OffersConfig"
 ]
+
+EXPLORER_ROOT = Path('/home/kamba/tmp')
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

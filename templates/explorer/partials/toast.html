@@ -1,0 +1,12 @@
+{% load nav_tags %}
+<div x-data="{ show: true }"
+     x-show="show"
+     x-init="setTimeout(() => show = false, 3000)"
+     class="flex items-center gap-2.5 rounded-lg border {% if action == 'delete' %}border-red-200 bg-red-50 text-red-700{% else %}border-primary-200 bg-primary-50 text-primary-700{% endif %} px-4 py-2.5 text-sm font-medium shadow-sm">
+    {% if action == 'delete' %}
+        {% icon 'trash' 'h-4 w-4 shrink-0' %}
+    {% else %}
+        {% icon 'check' 'h-4 w-4 shrink-0' %}
+    {% endif %}
+    <span>{{ message }}</span>
+</div>

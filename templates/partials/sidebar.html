@@ -1,0 +1,101 @@
+{% load nav_tags %}
+<aside id="app-sidebar"
+       class="fixed inset-y-0 left-0 z-40 flex w-64 -translate-x-full flex-col border-r border-gray-200 bg-white transition-transform duration-200 lg:static lg:translate-x-0">
+
+    <!-- Logo -->
+    <div class="flex h-16 shrink-0 items-center gap-2 border-b border-gray-100 px-5">
+        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-600 text-white">
+            <svg class="h-4.5 w-4.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a8 8 0 100 16 8 8 0 000-16zM8.5 6.5l5 3.5-5 3.5v-7z"/></svg>
+        </span>
+        <span class="text-lg font-bold tracking-tight text-gray-900">MediaHub</span>
+    </div>
+
+    <nav class="flex-1 space-y-6 overflow-y-auto px-3 py-5">
+
+        <div>
+            <a href="{% url 'dashboard:overview' %}" class="nav-link {% is_active 'dashboard:overview' %}">
+                {% icon 'home' %}
+                <span>Overview</span>
+            </a>
+            <a href="{% url 'dashboard:home' %}" class="nav-link {% is_active 'dashboard:home' %}">
+                {% icon 'grid' %}
+                <span>Dashboard</span>
+            </a>
+        </div>
+
+        <div>
+            <p class="nav-section-label">Content</p>
+            <a href="{% url 'offers:list' %}" class="nav-link {% is_active_prefix '/offers' %}">
+                {% icon 'table' %}
+                <span>Offers</span>
+            </a>
+            <a href="{% url 'dashboard:providers' %}" class="nav-link {% is_active 'dashboard:providers' %}">
+                {% icon 'users' %}
+                <span>Providers</span>
+            </a>
+            <a href="{% url 'dashboard:video_assets' %}" class="nav-link {% is_active 'dashboard:video_assets' %}">
+                {% icon 'play' %}
+                <span>Video Assets</span>
+            </a>
+            <a href="{% url 'dashboard:collections' %}" class="nav-link {% is_active 'dashboard:collections' %}">
+                {% icon 'layers' %}
+                <span>Collections</span>
+            </a>
+            <a href="{% url 'files:index' %}" class="nav-link {% is_active_prefix '/files' %}">
+                {% icon 'folder' %}
+                <span>File Explorer</span>
+            </a>
+        </div>
+
+        <div>
+            <p class="nav-section-label">Operations</p>
+            <a href="{% url 'dashboard:jobs' %}" class="nav-link {% is_active 'dashboard:jobs' %}">
+                {% icon 'list' %}
+                <span>Jobs</span>
+            </a>
+            <a href="{% url 'dashboard:scheduled_tasks' %}" class="nav-link {% is_active 'dashboard:scheduled_tasks' %}">
+                {% icon 'calendar' %}
+                <span>Scheduled Tasks</span>
+            </a>
+            <a href="{% url 'dashboard:workflows' %}" class="nav-link {% is_active 'dashboard:workflows' %}">
+                {% icon 'workflow' %}
+                <span>Workflows</span>
+            </a>
+        </div>
+
+        <div>
+            <p class="nav-section-label">Monitoring</p>
+            <a href="{% url 'dashboard:alerts' %}" class="nav-link {% is_active 'dashboard:alerts' %}">
+                {% icon 'bell' %}
+                <span>Alerts</span>
+            </a>
+            <a href="{% url 'dashboard:reports' %}" class="nav-link {% is_active 'dashboard:reports' %}">
+                {% icon 'chart' %}
+                <span>Reports</span>
+            </a>
+            <a href="{% url 'dashboard:audit_logs' %}" class="nav-link {% is_active 'dashboard:audit_logs' %}">
+                {% icon 'file' %}
+                <span>Audit Logs</span>
+            </a>
+        </div>
+
+        <div>
+            <p class="nav-section-label">Settings</p>
+            <a href="{% url 'dashboard:environments' %}" class="nav-link {% is_active 'dashboard:environments' %}">
+                {% icon 'cloud' %}
+                <span>Environments</span>
+            </a>
+            <a href="{% url 'dashboard:settings' %}" class="nav-link {% is_active 'dashboard:settings' %}">
+                {% icon 'cog' %}
+                <span>Settings</span>
+            </a>
+        </div>
+    </nav>
+
+    <div class="shrink-0 border-t border-gray-100 p-3">
+        <button type="button" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900">
+            {% icon 'collapse' %}
+            <span>Collapse</span>
+        </button>
+    </div>
+</aside>

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% load nav_tags %}
+
+{% block title %}File Explorer · MediaHub{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">File Explorer</h1>
+        <p class="mt-1 text-sm text-gray-500">Browse files served from disk via <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs">pathlib.Path</code></p>
+    </div>
+{% comment %}
+  
+    <div class="flex items-center gap-2">
+        <button type="button"
+                hx-get="{% url 'files:action' %}?action=new-folder&name=New folder"
+                hx-target="#toast-region" hx-swap="innerHTML"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
+            {% icon 'plus' 'h-4 w-4' %}
+            New folder
+        </button>
+        <button type="button"
+                hx-get="{% url 'files:action' %}?action=upload&name=file(s)"
+                hx-target="#toast-region" hx-swap="innerHTML"
+                class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700">
+            {% icon 'upload' 'h-4 w-4' %}
+            Upload
+        </button>
+    </div>
+{% endcomment %}
+
+</div>
+
+<div id="toast-region" class="mb-4"></div>
+
+<div id="explorer-root" class="rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div id="explorer-browser">
+        {% include "explorer/partials/browser.html" %}
+    </div>
+</div>
+
+<!-- Dummy right-click context menu (single shared instance, repositioned on open) -->
+<div id="context-menu"
+     class="fixed z-50 hidden w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-xl">
+    <button data-ctx-action="open" class="ctx-item">
+        {% icon 'folder-open' 'h-4 w-4 text-gray-500' %}
+        <span data-ctx-open-label>Open</span>
+    </button>
+    <div class="my-1 h-px bg-gray-100"></div>
+    <button data-ctx-action="rename" class="ctx-item">
+        {% icon 'pencil' 'h-4 w-4 text-gray-500' %}
+        Rename
+    </button>
+    <button data-ctx-action="copy" class="ctx-item">
+        {% icon 'clipboard-copy' 'h-4 w-4 text-gray-500' %}
+        Copy
+    </button>
+    <button data-ctx-action="cut" class="ctx-item">
+        {% icon 'scissors' 'h-4 w-4 text-gray-500' %}
+        Cut
+    </button>
+    <button data-ctx-action="download" class="ctx-item" data-ctx-file-only>
+        {% icon 'download' 'h-4 w-4 text-gray-500' %}
+        Download
+    </button>
+    <div class="my-1 h-px bg-gray-100"></div>
+    <button data-ctx-action="properties" class="ctx-item">
+        {% icon 'info' 'h-4 w-4 text-gray-500' %}
+        Properties
+    </button>
+    <div class="my-1 h-px bg-gray-100"></div>
+    <button data-ctx-action="delete" class="ctx-item ctx-item-danger">
+        {% icon 'trash' 'h-4 w-4' %}
+        Delete
+    </button>
+</div>
+
+<!-- Dummy context menu for empty canvas area (background right-click) -->
+<div id="context-menu-bg"
+     class="fixed z-50 hidden w-52 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-xl">
+    <button data-ctx-bg-action="new-folder" class="ctx-item">
+        {% icon 'plus' 'h-4 w-4 text-gray-500' %}
+        New folder
+    </button>
+    <button data-ctx-bg-action="upload" class="ctx-item">
+        {% icon 'upload' 'h-4 w-4 text-gray-500' %}
+        Upload here
+    </button>
+    <div class="my-1 h-px bg-gray-100"></div>
+    <button data-ctx-bg-action="paste" class="ctx-item">
+        {% icon 'clipboard-copy' 'h-4 w-4 text-gray-500' %}
+        Paste
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function () {
+    const menu = document.getElementById('context-menu');
+    const bgMenu = document.getElementById('context-menu-bg');
+    let activeTarget = null; // {name, isDir, path}
+
+    function hideMenus() {
+        menu.classList.add('hidden');
+        bgMenu.classList.add('hidden');
+    }
+
+    function positionMenu(el, x, y) {
+        el.classList.remove('hidden');
+        const { innerWidth, innerHeight } = window;
+        const rect = el.getBoundingClientRect();
+        const left = Math.min(x, innerWidth - rect.width - 8);
+        const top = Math.min(y, innerHeight - rect.height - 8);
+        el.style.left = `${Math.max(8, left)}px`;
+        el.style.top = `${Math.max(8, top)}px`;
+    }
+
+    // Delegate right-click on any row/card marked data-fs-item
+    document.addEventListener('contextmenu', function (e) {
+        const item = e.target.closest('[data-fs-item]');
+        const canvas = e.target.closest('#explorer-browser');
+
+        if (item) {
+            e.preventDefault();
+            activeTarget = {
+                name: item.dataset.fsName,
+                isDir: item.dataset.fsIsDir === 'true',
+                path: item.dataset.fsPath,
+            };
+            document.querySelector('[data-ctx-open-label]').textContent = activeTarget.isDir ? 'Open' : 'Open';
+            menu.querySelectorAll('[data-ctx-file-only]').forEach(btn => {
+                btn.style.display = activeTarget.isDir ? 'none' : 'flex';
+            });
+            positionMenu(menu, e.clientX, e.clientY);
+            bgMenu.classList.add('hidden');
+        } else if (canvas) {
+            e.preventDefault();
+            activeTarget = null;
+            positionMenu(bgMenu, e.clientX, e.clientY);
+            menu.classList.add('hidden');
+        }
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!menu.contains(e.target) && !bgMenu.contains(e.target)) {
+            hideMenus();
+        }
+    });
+    window.addEventListener('scroll', hideMenus, true);
+    window.addEventListener('resize', hideMenus);
+
+    menu.querySelectorAll('[data-ctx-action]').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const action = btn.dataset.ctxAction;
+            hideMenus();
+            if (!activeTarget) return;
+
+            if (action === 'open' && activeTarget.isDir) {
+                htmx.ajax('GET', `{% url 'files:browse' %}?path=${encodeURIComponent(activeTarget.path)}`, {
+                    target: '#explorer-browser', swap: 'innerHTML'
+                });
+                return;
+            }
+
+            const url = `{% url 'files:action' %}?action=${encodeURIComponent(action)}&name=${encodeURIComponent(activeTarget.name)}`;
+            htmx.ajax('GET', url, { target: '#toast-region', swap: 'innerHTML' });
+        });
+    });
+
+    bgMenu.querySelectorAll('[data-ctx-bg-action]').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const action = btn.dataset.ctxBgAction;
+            hideMenus();
+            const url = `{% url 'files:action' %}?action=${encodeURIComponent(action)}&name=this folder`;
+            htmx.ajax('GET', url, { target: '#toast-region', swap: 'innerHTML' });
+        });
+    });
+})();
+</script>
+{% endblock %}

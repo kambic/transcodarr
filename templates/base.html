@@ -1,151 +1,80 @@
-{% load static pipeline_tags %}<!doctype html>
-<html lang="en" class="dark">
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Transcodarr{% endblock %}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ page_title|default:"Dashboard" }} · MediaHub{% endblock %}</title>
 
-  {# Dev setup. For production, build Tailwind with the Flowbite plugin — see README. #}
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = { darkMode: 'class' };
-    // Apply the stored theme before first paint so the page never flashes white.
-    if (localStorage.getItem('theme') === 'light') document.documentElement.classList.remove('dark');
-  </script>
-  <link href="https://cdn.jsdelivr.net/npm/flowbite@2/dist/flowbite.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2/dist/htmx.min.js" defer></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc',
+                            400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca',
+                            800: '#3730a3', 900: '#312e81',
+                        },
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                },
+            },
+        };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.14.3/dist/cdn.min.js"></script>
+
+    <link rel="stylesheet" href="{% static 'css/app.css' %}">
+    {% block extra_head %}{% endblock %}
 </head>
+<body class="bg-gray-50 font-sans text-gray-900 antialiased">
 
-<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 antialiased"
-      hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
-      hx-indicator="#global-progress">
+<div class="flex h-screen overflow-hidden" x-data="{ sidebarOpen: false }">
 
-  <div id="global-progress" class="htmx-indicator fixed top-0 inset-x-0 h-0.5 bg-cyan-500 z-50"></div>
+    {% include "partials/sidebar.html" %}
 
-  <!-- Top bar -->
-  <nav class="fixed top-0 z-40 w-full bg-white border-b border-gray-200 dark:bg-gray-800 dark:border-gray-700">
-    <div class="px-3 py-3 lg:px-5">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <button data-drawer-target="sidebar" data-drawer-toggle="sidebar" aria-controls="sidebar" type="button"
-                  class="inline-flex items-center p-2 text-sm text-gray-500 rounded-lg sm:hidden hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
-            <span class="sr-only">Open the menu</span>
-            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM3 15a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"/></svg>
-          </button>
-          <a href="{% url 'pipeline:dashboard' %}" class="flex items-center gap-2">
-            <span class="grid w-8 h-8 rounded-lg bg-cyan-500 place-items-center text-gray-900 font-black">T</span>
-            <span class="self-center text-xl font-semibold whitespace-nowrap dark:text-white">Transcodarr</span>
-          </a>
-        </div>
+    <!-- Mobile sidebar backdrop -->
+    <div id="sidebar-backdrop" class="fixed inset-0 z-30 bg-gray-900/50 hidden lg:hidden"></div>
 
-        <div class="flex items-center gap-2">
-          <span class="hidden sm:inline-flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <span class="relative flex w-2 h-2">
-              <span class="absolute inline-flex w-full h-full rounded-full opacity-75 bg-cyan-400 animate-ping"></span>
-              <span class="relative inline-flex w-2 h-2 rounded-full bg-cyan-500"></span>
-            </span>
-            {{ nav_running_count }} encoding
-          </span>
-          <button id="theme-toggle" type="button"
-                  class="p-2 text-sm text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700">
-            <span class="sr-only">Switch between light and dark</span>
-            <svg class="hidden w-5 h-5 dark:block" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
-            <svg class="w-5 h-5 dark:hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
-          </button>
-        </div>
-      </div>
+    <div class="flex flex-1 flex-col overflow-hidden">
+        {% include "partials/header.html" %}
+
+        <main class="flex-1 overflow-y-auto">
+            <div class="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
     </div>
-  </nav>
+</div>
 
-  <!-- Sidebar -->
-  <aside id="sidebar" aria-label="Main"
-         class="fixed top-0 left-0 z-30 w-60 h-screen pt-20 transition-transform -translate-x-full bg-white border-r border-gray-200 sm:translate-x-0 dark:bg-gray-800 dark:border-gray-700">
-    <div class="h-full px-3 pb-4 overflow-y-auto">
-      <ul class="space-y-1 font-medium">
-        {% url 'pipeline:dashboard' as u %}{% include 'partials/nav_item.html' with url=u label='Dashboard' icon='grid' %}
-        {% url 'pipeline:queue' as u %}{% include 'partials/nav_item.html' with url=u label='Queue' icon='play' count=nav_queue_count %}
-        {% url 'pipeline:file_list' as u %}{% include 'partials/nav_item.html' with url=u label='Files' icon='film' %}
-        {% url 'pipeline:library_list' as u %}{% include 'partials/nav_item.html' with url=u label='Libraries' icon='folder' %}
-        {% url 'pipeline:flow_list' as u %}{% include 'partials/nav_item.html' with url=u label='Flows' icon='flow' %}
-        {% url 'pipeline:profile_list' as u %}{% include 'partials/nav_item.html' with url=u label='Profiles' icon='sliders' %}
-        {% url 'pipeline:worker_list' as u %}{% include 'partials/nav_item.html' with url=u label='Workers' icon='cpu' %}
-      </ul>
-      <ul class="pt-4 mt-4 space-y-1 font-medium border-t border-gray-200 dark:border-gray-700">
-        {% url 'admin:index' as u %}{% include 'partials/nav_item.html' with url=u label='Django admin' icon='cog' %}
-      </ul>
-    </div>
-  </aside>
+<script>
+    // Simple mobile sidebar toggle (no Alpine dependency required)
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('app-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
 
-  <main class="p-4 pt-20 sm:ml-60">
-    {% if messages %}
-      <div class="mb-4 space-y-2">
-        {% for message in messages %}
-          <div class="flex items-center p-4 text-sm rounded-lg bg-gray-100 dark:bg-gray-800 dark:text-gray-300" role="status">
-            {{ message }}
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
-
-    {% block content %}{% endblock %}
-  </main>
-
-  <!-- htmx drops modal bodies in here; the wrapper handles show/hide -->
-  <div id="modal-backdrop" class="hidden fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm">
-    <div class="flex items-start justify-center min-h-full p-4 pt-20">
-      <div id="modal" class="w-full max-w-2xl"></div>
-    </div>
-  </div>
-
-  <div id="toasts" class="fixed z-50 space-y-2 bottom-5 right-5"></div>
-
-  <script src="https://cdn.jsdelivr.net/npm/flowbite@2/dist/flowbite.min.js"></script>
-  <script>
-    // Flowbite binds its behaviour once on load. Anything htmx swaps in
-    // afterwards needs re-initialising or dropdowns and tooltips go dead.
-    document.body.addEventListener('htmx:afterSwap', () => window.initFlowbite && initFlowbite());
-
-    const backdrop = document.getElementById('modal-backdrop');
-    const modal = document.getElementById('modal');
-    const openModal = () => backdrop.classList.remove('hidden');
-    const closeModal = () => { backdrop.classList.add('hidden'); modal.innerHTML = ''; };
-
-    // Any element with hx-target="#modal" opens the dialog once its body lands.
-    document.body.addEventListener('htmx:afterSwap', (e) => {
-      if (e.detail.target.id === 'modal' && modal.innerHTML.trim()) openModal();
+    function closeSidebar() {
+        sidebar.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+    }
+    function openSidebar() {
+        sidebar.classList.remove('-translate-x-full');
+        backdrop.classList.remove('hidden');
+    }
+    sidebarToggle?.addEventListener('click', () => {
+        sidebar.classList.contains('-translate-x-full') ? openSidebar() : closeSidebar();
     });
-    document.body.addEventListener('closeModal', closeModal);
-    document.body.addEventListener('reloadPage', () => window.location.reload());
-    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeModal(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
-
-    // Server-sent toasts: response header HX-Trigger: {"toast": {"message": "..."}}
-    document.body.addEventListener('toast', (e) => {
-      const el = document.createElement('div');
-      el.className = 'flex items-center w-full max-w-xs p-4 text-gray-500 bg-white rounded-lg shadow ' +
-                     'dark:text-gray-400 dark:bg-gray-800 border border-gray-200 dark:border-gray-700';
-      el.setAttribute('role', 'status');
-      el.textContent = (e.detail && e.detail.message) || 'Done';
-      document.getElementById('toasts').appendChild(el);
-      setTimeout(() => el.remove(), 4000);
-    });
-
-    // Pause every polling partial while the tab is hidden.
-    document.addEventListener('visibilitychange', () => {
-      document.querySelectorAll('[hx-trigger*="every"]').forEach((el) => {
-        document.hidden ? el.setAttribute('hx-disable', '') : el.removeAttribute('hx-disable');
-      });
-    });
-
-    document.getElementById('theme-toggle').addEventListener('click', () => {
-      const dark = document.documentElement.classList.toggle('dark');
-      localStorage.setItem('theme', dark ? 'dark' : 'light');
-    });
-  </script>
-  <style>
-    .htmx-indicator { opacity: 0; transition: opacity 120ms ease-in; }
-    .htmx-request .htmx-indicator, .htmx-request.htmx-indicator { opacity: 1; }
-    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
-  </style>
+    backdrop?.addEventListener('click', closeSidebar);
+</script>
+{% block extra_scripts %}{% endblock %}
 </body>
 </html>

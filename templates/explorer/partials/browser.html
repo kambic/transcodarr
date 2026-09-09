@@ -1,0 +1,97 @@
+{% load nav_tags %}
+<div class="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+    <nav class="flex items-center gap-1 text-sm">
+        {% for crumb in breadcrumbs %}
+            {% if not forloop.last %}
+                <button type="button"
+                        class="rounded px-1.5 py-0.5 font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                        hx-get="{% url 'files:browse' %}?path={{ crumb.path|urlencode }}"
+                        hx-target="#explorer-browser">
+                    {{ crumb.name }}
+                </button>
+                <span class="text-gray-300">/</span>
+            {% else %}
+                <span class="rounded px-1.5 py-0.5 font-semibold text-gray-900">{{ crumb.name }}</span>
+            {% endif %}
+        {% endfor %}
+    </nav>
+    <p class="text-xs text-gray-400">{{ folder_count }} folder{{ folder_count|pluralize }} · {{ file_count }} file{{ file_count|pluralize }}</p>
+</div>
+
+<div class="overflow-x-auto">
+    <table class="dash-table w-full">
+        <thead>
+            <tr class="border-b border-gray-100">
+                <th class="w-8"></th>
+                <th>
+                    <button type="button" class="sort-btn"
+                            hx-get="{% url 'files:browse' %}?path={{ current_path|urlencode }}&sort={% if current_sort == 'name' %}-name{% else %}name{% endif %}"
+                            hx-target="#explorer-browser">
+                        Name {% icon 'arrows-updown' 'h-3.5 w-3.5 text-gray-400' %}
+                    </button>
+                </th>
+                <th>
+                    <button type="button" class="sort-btn"
+                            hx-get="{% url 'files:browse' %}?path={{ current_path|urlencode }}&sort={% if current_sort == 'size' %}-size{% else %}size{% endif %}"
+                            hx-target="#explorer-browser">
+                        Size {% icon 'arrows-updown' 'h-3.5 w-3.5 text-gray-400' %}
+                    </button>
+                </th>
+                <th>
+                    <button type="button" class="sort-btn"
+                            hx-get="{% url 'files:browse' %}?path={{ current_path|urlencode }}&sort={% if current_sort == 'modified' %}-modified{% else %}modified{% endif %}"
+                            hx-target="#explorer-browser">
+                        Modified {% icon 'arrows-updown' 'h-3.5 w-3.5 text-gray-400' %}
+                    </button>
+                </th>
+                <th class="text-right">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+            <tr data-fs-item
+                data-fs-name="{{ entry.name }}"
+                data-fs-is-dir="{{ entry.is_dir|yesno:'true,false' }}"
+                data-fs-path="{{ entry.rel_path }}"
+                class="{% if entry.is_dir %}cursor-pointer{% endif %} select-none">
+                <td class="pr-0">
+                    {% if entry.is_dir %}
+                        {% icon 'folder' 'h-5 w-5 text-primary-500' %}
+                    {% else %}
+                        {% icon entry.icon 'h-5 w-5 text-gray-400' %}
+                    {% endif %}
+                </td>
+                <td class="font-medium text-gray-800">
+                    {% if entry.is_dir %}
+                        <button type="button" class="hover:text-primary-600 hover:underline"
+                                hx-get="{% url 'files:browse' %}?path={{ entry.rel_path|urlencode }}"
+                                hx-target="#explorer-browser">
+                            {{ entry.name }}
+                        </button>
+                    {% else %}
+                        {{ entry.name }}
+                    {% endif %}
+                </td>
+                <td class="text-gray-500">{% if entry.is_dir %}—{% else %}{{ entry.size|filesizeformat }}{% endif %}</td>
+                <td class="text-gray-500">{{ entry.modified|date:"M j, Y H:i" }}</td>
+                <td class="text-right">
+                    <button type="button" data-fs-item
+                            data-fs-name="{{ entry.name }}"
+                            data-fs-is-dir="{{ entry.is_dir|yesno:'true,false' }}"
+                            data-fs-path="{{ entry.rel_path }}"
+                            onclick="event.currentTarget.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true, clientX: event.clientX, clientY: event.clientY}))"
+                            class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+                        {% icon 'dots-vertical' 'h-4 w-4' %}
+                    </button>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="px-4 py-12 text-center text-sm text-gray-400">
+                    This folder is empty.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

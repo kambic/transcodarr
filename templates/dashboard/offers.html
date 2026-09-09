@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% load nav_tags %}
+
+{% block title %}Offers · MediaHub{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Offers</h1>
+        <p class="mt-1 text-sm text-gray-500">Monitor and manage content offers and their processing status</p>
+    </div>
+    <a href="{% url 'offers:export' %}?{{ base_query }}"
+       class="inline-flex items-center gap-2 self-start rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50">
+        {% icon 'download' 'h-4 w-4' %}
+        Export
+    </a>
+</div>
+
+<form id="filters-form"
+      hx-get="{% url 'offers:table' %}"
+      hx-target="#offers-table-wrapper"
+      hx-swap="innerHTML"
+      hx-trigger="change, submit"
+      hx-indicator="#offers-table-wrapper"
+      class="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div>
+            <label for="id_task_id" class="mb-1.5 block text-sm font-medium text-gray-700">Task ID</label>
+            <div class="relative">
+                <input type="text" name="task_id" id="id_task_id" value="{{ filters.task_id }}"
+                       placeholder="Search Task ID..."
+                       hx-get="{% url 'offers:table' %}"
+                       hx-target="#offers-table-wrapper"
+                       hx-trigger="keyup changed delay:400ms"
+                       hx-include="#filters-form"
+                       class="block w-full rounded-lg border border-gray-300 py-2 pl-3 pr-9 text-sm focus:border-primary-500 focus:ring-primary-500">
+                <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
+                    {% icon 'search' 'h-4 w-4' %}
+                </span>
+            </div>
+        </div>
+
+        <div>
+            <label for="id_offer_id" class="mb-1.5 block text-sm font-medium text-gray-700">OfferID</label>
+            <div class="relative">
+                <input type="text" name="offer_id" id="id_offer_id" value="{{ filters.offer_id }}"
+                       placeholder="Search OfferID..."
+                       hx-get="{% url 'offers:table' %}"
+                       hx-target="#offers-table-wrapper"
+                       hx-trigger="keyup changed delay:400ms"
+                       hx-include="#filters-form"
+                       class="block w-full rounded-lg border border-gray-300 py-2 pl-3 pr-9 text-sm focus:border-primary-500 focus:ring-primary-500">
+                <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
+                    {% icon 'search' 'h-4 w-4' %}
+                </span>
+            </div>
+        </div>
+
+        <div>
+            <label for="id_provider" class="mb-1.5 block text-sm font-medium text-gray-700">Provider</label>
+            <select name="provider" id="id_provider"
+                    class="block w-full rounded-lg border border-gray-300 py-2 text-sm focus:border-primary-500 focus:ring-primary-500">
+                <option value="">All Providers</option>
+                {% for p in providers %}
+                    <option value="{{ p }}" {% if filters.provider == p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label for="id_environment" class="mb-1.5 block text-sm font-medium text-gray-700">Environment</label>
+            <select name="environment" id="id_environment"
+                    class="block w-full rounded-lg border border-gray-300 py-2 text-sm focus:border-primary-500 focus:ring-primary-500">
+                <option value="">All Environments</option>
+                {% for value, label in environments %}
+                    <option value="{{ value }}" {% if filters.environment == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label for="id_status" class="mb-1.5 block text-sm font-medium text-gray-700">Status</label>
+            <select name="status" id="id_status"
+                    class="block w-full rounded-lg border border-gray-300 py-2 text-sm focus:border-primary-500 focus:ring-primary-500">
+                <option value="">All Statuses</option>
+                {% for value, label in statuses %}
+                    <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div>
+            <label for="id_processing_from" class="mb-1.5 block text-sm font-medium text-gray-700">Processing Datetime From</label>
+            <input type="datetime-local" name="processing_from" id="id_processing_from" value="{{ filters.processing_from }}"
+                   class="block w-full rounded-lg border border-gray-300 py-2 text-sm focus:border-primary-500 focus:ring-primary-500">
+        </div>
+        <div>
+            <label for="id_processing_to" class="mb-1.5 block text-sm font-medium text-gray-700">Processing Datetime To</label>
+            <input type="datetime-local" name="processing_to" id="id_processing_to" value="{{ filters.processing_to }}"
+                   class="block w-full rounded-lg border border-gray-300 py-2 text-sm focus:border-primary-500 focus:ring-primary-500">
+        </div>
+        <div>
+            <label for="id_expired_from" class="mb-1.5 block text-sm font-medium text-gray-700">Expired From</label>
+            <input type="datetime-local" name="expired_from" id="id_expired_from" value="{{ filters.expired_from }}"
+                   class="block w-full rounded-lg border border-gray-300 py-2 text-sm focus:border-primary-500 focus:ring-primary-500">
+        </div>
+        <div>
+            <label for="id_expired_to" class="mb-1.5 block text-sm font-medium text-gray-700">Expired To</label>
+            <input type="datetime-local" name="expired_to" id="id_expired_to" value="{{ filters.expired_to }}"
+                   class="block w-full rounded-lg border border-gray-300 py-2 text-sm focus:border-primary-500 focus:ring-primary-500">
+        </div>
+        <div class="flex items-end gap-2">
+            <button type="button"
+                    hx-get="{% url 'offers:table' %}"
+                    hx-target="#offers-table-wrapper"
+                    onclick="document.getElementById('filters-form').reset(); document.querySelectorAll('#filters-form select').forEach(s => s.value='');"
+                    class="inline-flex w-full items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Clear
+            </button>
+            <button type="submit"
+                    class="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700">
+                {% icon 'filter' 'h-4 w-4' %}
+                Apply Filters
+            </button>
+        </div>
+    </div>
+    <input type="hidden" name="sort" id="id_sort" value="{{ current_sort }}">
+</form>
+
+<div id="offers-table-wrapper" class="transition-opacity">
+    {% include "partials/offers_table.html" %}
+</div>
+{% endblock %}

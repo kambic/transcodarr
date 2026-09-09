@@ -1,0 +1,87 @@
+{% load nav_tags %}
+{% load offer_tags %}
+
+<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+    <div class="overflow-x-auto">
+        <table class="dash-table w-full">
+            <thead>
+                <tr class="border-b border-gray-100">
+                    {% sortable_th "task_id" "Task ID" current_sort base_query %}
+                    {% sortable_th "offer_id" "OfferID" current_sort base_query %}
+                    <th>Provider</th>
+                    {% sortable_th "expired" "Expired" current_sort base_query %}
+                    {% sortable_th "video_assets" "VideoAssets" current_sort base_query %}
+                    <th>Environment</th>
+                    {% sortable_th "processing_datetime" "Processing Datetime" current_sort base_query %}
+                    {% sortable_th "status" "Status" current_sort base_query %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for offer in page_obj %}
+                <tr>
+                    <td class="font-medium text-gray-900">{{ offer.task_id }}</td>
+                    <td class="font-mono text-xs text-gray-600">{{ offer.offer_id }}</td>
+                    <td>{{ offer.provider }}</td>
+                    <td class="text-gray-600">{{ offer.expired_at|date:"M j, Y H:i:s" }}</td>
+                    <td>
+                        {% if offer.has_video_assets %}
+                            {% icon 'check-circle' 'h-5 w-5 text-green-500' %}
+                        {% else %}
+                            {% icon 'x-circle' 'h-5 w-5 text-red-500' %}
+                        {% endif %}
+                    </td>
+                    <td class="text-gray-600">{{ offer.get_environment_display }}</td>
+                    <td class="text-gray-600">{{ offer.processing_datetime|date:"M j, Y H:i:s" }}</td>
+                    <td>
+                        {% if offer.status == 'done' %}
+                            <span class="badge badge-done"><span class="badge-dot"></span>Done</span>
+                        {% elif offer.status == 'processing' %}
+                            <span class="badge badge-processing"><span class="badge-dot"></span>Processing</span>
+                        {% elif offer.status == 'error' %}
+                            <span class="badge badge-error"><span class="badge-dot"></span>Error</span>
+                        {% else %}
+                            <span class="badge badge-pending"><span class="badge-dot"></span>Pending</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="px-4 py-16 text-center text-sm text-gray-400">
+                        No offers match the current filters.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="flex flex-col items-center justify-between gap-3 border-t border-gray-100 px-4 py-3.5 sm:flex-row">
+        <p class="text-sm text-gray-500">
+            Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ total_count }} results
+        </p>
+
+        {% if page_obj.paginator.num_pages > 1 %}
+        <nav class="flex items-center gap-1">
+            <button type="button"
+                    {% if not page_obj.has_previous %}disabled{% endif %}
+                    hx-get="{% url 'offers:table' %}?{% if base_query %}{{ base_query }}&{% endif %}page={{ page_obj.previous_page_number }}"
+                    hx-target="#offers-table-wrapper"
+                    class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">
+                {% icon 'chevron-left' 'h-4 w-4' %}
+            </button>
+
+            {% for num in page_obj.paginator.page_range %}
+                {% page_link num page_obj base_query %}
+            {% endfor %}
+
+            <button type="button"
+                    {% if not page_obj.has_next %}disabled{% endif %}
+                    hx-get="{% url 'offers:table' %}?{% if base_query %}{{ base_query }}&{% endif %}page={{ page_obj.next_page_number }}"
+                    hx-target="#offers-table-wrapper"
+                    class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40">
+                {% icon 'chevron-right' 'h-4 w-4' %}
+            </button>
+        </nav>
+        {% endif %}
+    </div>
+</div>
