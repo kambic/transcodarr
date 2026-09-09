@@ -1,0 +1,6 @@
+[submodule "modules/django-file-manager"]
+	path = modules/django-file-manager
+	url = https://github.com/app-generator/sample-django-file-manager.git
+[submodule "modules/FileManager"]
+	path = modules/FileManager
+	url = https://github.com/talented/FileManager.git

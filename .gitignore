@@ -10,3 +10,4 @@ staticfiles/
 /out/
 /data/
 /lib/
+node_modules/
