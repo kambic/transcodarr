@@ -12,3 +12,6 @@ staticfiles/
 /lib/
 node_modules/
 media
+
+static/CACHE/
+flowbiteapp/__pycache__

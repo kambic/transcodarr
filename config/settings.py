@@ -23,7 +23,9 @@ INSTALLED_APPS = [
     # Third party
     "django_tasks_db",  # DatabaseBackend + `manage.py db_worker`
     "django_htmx",
+    # "debug_toolbar",
     # Local
+    'compressor',  # new
     "pipeline",
     "files.apps.FilesConfig",
     "dashboard.apps.DashboardConfig",
@@ -36,8 +38,8 @@ EXPLORER_ROOT = Path('/home/kamba/tmp')
 TRANSCODE = {}
 VAULT = { "QUOTA_BYTES" : 1_000_000 }
 MIDDLEWARE = [
+    # "debug_toolbar.middleware.DebugToolbarMiddleware",
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -123,13 +125,11 @@ USE_TZ = True
 MEDIA_ROOT = 'media'
 MEDIA_URL = '/media/'
 
-STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-STATICFILES_DIRS = [BASE_DIR / "static"] if (BASE_DIR / "static").exists() else []
-STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
-}
+# STORAGES = {
+#     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    # "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
+# }
 
 LOGIN_URL = "/admin/login/"
 MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
@@ -144,3 +144,25 @@ LOGGING = {
         "django.db.backends": {"level": "WARNING"},
     },
 }
+
+COMPRESS_ROOT = BASE_DIR / 'static'
+
+
+
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+
+COMPRESS_ENABLED = True
+COMPRESS_OUTPUT_DIR = 'CACHE'
+
+# Retain script element attributes when compressing
+# COMPRESS_JS_FILTERS = [
+#     'compressor.filters.jsmin.JSMinFilter',
+# ]
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+    'compressor.finders.CompressorFinder',
+]
+# Ensure data attributes and type="module" are preserved
+COMPRESS_DATA_URI_MAX_SIZE = 1024

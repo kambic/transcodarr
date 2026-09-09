@@ -1,0 +1,77 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ page_title|default:"Dashboard" }} · MediaHub{% endblock %}</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc',
+                            400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca',
+                            800: '#3730a3', 900: '#312e81',
+                        },
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    },
+                },
+            },
+        };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+
+
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 font-sans text-gray-900 antialiased">
+
+<div class="flex h-screen overflow-hidden" x-data="{ sidebarOpen: false }">
+
+    {% include "partials/sidebar.html" %}
+
+    <!-- Mobile sidebar backdrop -->
+    <div id="sidebar-backdrop" class="fixed inset-0 z-30 bg-gray-900/50 hidden lg:hidden"></div>
+
+    <div class="flex flex-1 flex-col overflow-hidden">
+        {% include "partials/header.html" %}
+
+        <main class="flex-1 overflow-y-auto">
+            <div class="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    // Simple mobile sidebar toggle (no Alpine dependency required)
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('app-sidebar');
+    const backdrop = document.getElementById('sidebar-backdrop');
+
+    function closeSidebar() {
+        sidebar.classList.add('-translate-x-full');
+        backdrop.classList.add('hidden');
+    }
+    function openSidebar() {
+        sidebar.classList.remove('-translate-x-full');
+        backdrop.classList.remove('hidden');
+    }
+    sidebarToggle?.addEventListener('click', () => {
+        sidebar.classList.contains('-translate-x-full') ? openSidebar() : closeSidebar();
+    });
+    backdrop?.addEventListener('click', closeSidebar);
+</script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

@@ -4,3 +4,6 @@
 [submodule "modules/FileManager"]
 	path = modules/FileManager
 	url = https://github.com/talented/FileManager.git
+[submodule "modules/starter"]
+	path = modules/starter
+	url = https://github.com/themesberg/tailwind-django-starter.git

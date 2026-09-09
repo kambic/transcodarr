@@ -1,60 +1,77 @@
+<header class="sticky top-0 z-20 border-b border-gray-200 bg-white">
+  <div class="px-4 py-2.5 lg:px-6">
+    <div class="flex items-center justify-between">
+      
+      <!-- Left side: Mobile menu button & Search -->
+      <div class="flex items-center justify-start gap-3">
+        <button id="sidebar-toggle" type="button" class="inline-flex items-center rounded-lg p-2 text-sm text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 lg:hidden">
+          <span class="sr-only">Toggle sidebar</span>
+          <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
 
-
-<nav class="bg-neutral-primary fixed w-full z-20 top-0 start-0 border-b border-default">
-  <div class="max-w-screen-xl flex flex-wrap items-center justify-between mx-auto p-4">
-  <a href="https://flowbite.com/" class="flex items-center space-x-3 rtl:space-x-reverse">
-      <img src="https://flowbite.com/docs/images/logo.svg" class="h-7" alt="Flowbite Logo" />
-      <span class="self-center text-xl text-heading font-semibold whitespace-nowrap">Flowbite</span>
-  </a>
-  <div class="flex items-center md:order-2 space-x-3 md:space-x-0 rtl:space-x-reverse">
-      <button type="button" class="flex text-sm bg-neutral-primary rounded-full md:me-0 focus:ring-4 focus:ring-neutral-tertiary" id="user-menu-button" aria-expanded="false" data-dropdown-toggle="user-dropdown" data-dropdown-placement="bottom">
-        <span class="sr-only">Open user menu</span>
-        <img class="w-8 h-8 rounded-full" src="/docs/images/people/profile-picture-5.jpg" alt="user photo">
-      </button>
-      <!-- Dropdown menu -->
-      <div class="z-50 hidden bg-neutral-primary-medium border border-default-medium rounded-base shadow-lg w-44" id="user-dropdown">
-        <div class="px-4 py-3 text-sm border-b border-default">
-          <span class="block text-heading font-medium">Joseph McFall</span>
-          <span class="block text-body truncate">name@flowbite.com</span>
-        </div>
-        <ul class="p-2 text-sm text-body font-medium" aria-labelledby="user-menu-button">
-          <li>
-            <a href="#" class="inline-flex items-center w-full p-2 hover:bg-neutral-tertiary-medium hover:text-heading rounded">Dashboard</a>
-          </li>
-          <li>
-            <a href="#" class="inline-flex items-center w-full p-2 hover:bg-neutral-tertiary-medium hover:text-heading rounded">Settings</a>
-          </li>
-          <li>
-            <a href="#" class="inline-flex items-center w-full p-2 hover:bg-neutral-tertiary-medium hover:text-heading rounded">Earnings</a>
-          </li>
-          <li>
-            <a href="#" class="inline-flex items-center w-full p-2 hover:bg-neutral-tertiary-medium hover:text-heading rounded">Sign out</a>
-          </li>
-        </ul>
+        <form action="#" method="GET" class="hidden sm:block">
+          <label for="topbar-search" class="sr-only">Search</label>
+          <div class="relative w-64 lg:w-96">
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <svg class="h-5 w-5 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+              </svg>
+            </div>
+            <input type="text" name="q" id="topbar-search" class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 pl-10 text-sm text-gray-900 focus:border-blue-500 focus:ring-blue-500" placeholder="Search...">
+          </div>
+        </form>
       </div>
-      <button data-collapse-toggle="navbar-user" type="button" class="inline-flex items-center p-2 w-10 h-10 justify-center text-sm text-body rounded-base md:hidden hover:bg-neutral-secondary-soft hover:text-heading focus:outline-none focus:ring-2 focus:ring-neutral-tertiary" aria-controls="navbar-user" aria-expanded="false">
-        <span class="sr-only">Open main menu</span>
-        <svg class="w-6 h-6" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24"><path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M5 7h14M5 12h14M5 17h14"/></svg>
-      </button>
+
+      <!-- Right side: Actions & User Dropdown -->
+      <div class="flex items-center gap-3">
+        <!-- Notifications Button -->
+        <button type="button" class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus:ring-2 focus:ring-gray-300">
+          <span class="sr-only">View notifications</span>
+          <svg class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
+          </svg>
+        </button>
+
+        <!-- Profile Menu Dropdown -->
+        <div class="relative">
+          <button type="button" class="flex rounded-full bg-gray-800 text-sm focus:ring-4 focus:ring-gray-300" id="user-menu-button" aria-expanded="false" data-dropdown-toggle="user-dropdown">
+            <span class="sr-only">Open user menu</span>
+            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+              {% if user.is_authenticated %}{{ user.username|slice:":1"|upper }}{% else %}G{% endif %}
+            </div>
+          </button>
+
+          <!-- Flowbite Dropdown menu -->
+          <div class="z-50 my-4 hidden list-none divide-y divide-gray-100 rounded-lg bg-white text-base shadow" id="user-dropdown">
+            <div class="px-4 py-3">
+              {% if user.is_authenticated %}
+                <span class="block text-sm text-gray-900">{{ user.get_full_name|default:user.username }}</span>
+                <span class="block truncate text-sm text-gray-500">{{ user.email }}</span>
+              {% else %}
+                <span class="block text-sm text-gray-900">Guest User</span>
+              {% endif %}
+            </div>
+            <ul class="py-2" aria-labelledby="user-menu-button">
+              <li>
+                <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Settings</a>
+              </li>
+              {% if user.is_authenticated %}
+                <li>
+                  <a href="{% url 'admin:logout' %}" class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">Sign out</a>
+                </li>
+              {% else %}
+                <li>
+                  <a href="{% url 'admin:login' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Sign in</a>
+                </li>
+              {% endif %}
+            </ul>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
   </div>
-  <div class="items-center justify-between hidden w-full md:flex md:w-auto md:order-1" id="navbar-user">
-    <ul class="font-medium flex flex-col p-4 md:p-0 mt-4 border border-default rounded-base bg-neutral-secondary-soft md:flex-row md:space-x-8 rtl:space-x-reverse md:mt-0 md:border-0 md:bg-neutral-primary">
-      <li>
-        <a href="#" class="block py-2 px-3 text-white bg-brand rounded md:bg-transparent md:text-fg-brand md:p-0" aria-current="page">Home</a>
-      </li>
-      <li>
-        <a href="#" class="block py-2 px-3 text-heading rounded hover:bg-neutral-tertiary md:hover:bg-transparent md:border-0 md:hover:text-fg-brand md:p-0 md:dark:hover:bg-transparent">About</a>
-      </li>
-      <li>
-        <a href="#" class="block py-2 px-3 text-heading rounded hover:bg-neutral-tertiary md:hover:bg-transparent md:border-0 md:hover:text-fg-brand md:p-0 md:dark:hover:bg-transparent">Services</a>
-      </li>
-      <li>
-        <a href="#" class="block py-2 px-3 text-heading rounded hover:bg-neutral-tertiary md:hover:bg-transparent md:border-0 md:hover:text-fg-brand md:p-0 md:dark:hover:bg-transparent">Pricing</a>
-      </li>
-      <li>
-        <a href="#" class="block py-2 px-3 text-heading rounded hover:bg-neutral-tertiary md:hover:bg-transparent md:border-0 md:hover:text-fg-brand md:p-0 md:dark:hover:bg-transparent">Contact</a>
-      </li>
-    </ul>
-  </div>
-  </div>
-</nav>
+</header>

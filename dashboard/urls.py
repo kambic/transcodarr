@@ -18,4 +18,6 @@ urlpatterns = [
     path("audit-logs/", views.audit_logs, name="audit_logs"),
     path("environments/", views.environments, name="environments"),
     path("settings/", views.settings_page, name="settings"),
+
+    path("demo/", views.demo, name="demo"),
 ]

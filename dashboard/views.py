@@ -8,6 +8,9 @@ def _placeholder(request, title, subtitle=""):
         {"page_title": title, "page_subtitle": subtitle},
     )
 
+def demo(request):
+    return render(request, "demo.html")
+
 
 def overview(request):
     return render(request, "dashboard/overview.html", {"page_title": "Overview"})
@@ -22,6 +25,7 @@ def providers(request):
 
 
 def video_assets(request):
+    return render(request, "dashboard/video_assets.html", {"page_title": "Video Assets"})
     return _placeholder(request, "Video Assets", "Browse and manage processed video assets")
 
 
